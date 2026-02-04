@@ -37,14 +37,12 @@ CREATE TABLE IF NOT EXISTS submission (
     language TEXT CHECK(language IN ('c', 'cpp', 'python')) NOT NULL,
     source_code TEXT NOT NULL,
     status TEXT CHECK(status IN (
-        'queued',
-        'running',
         'accepted',
-        'wrong_answer',
+        'rejected',
         'runtime_error',
         'compile_error',
         'time_limit_exceeded'
-    )) DEFAULT 'queued',
+    )) DEFAULT 'rejected',
     score INTEGER DEFAULT 0,
     compile_log TEXT,
     runtime_log TEXT,

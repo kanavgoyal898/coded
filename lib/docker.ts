@@ -1,5 +1,36 @@
 import { spawn } from "child_process"
 
+let cleanupRegistered = false
+
+function dockerCleanup() {
+    const cmds = [
+        ["container", "prune", "-f"],
+        ["image", "prune", "-af"],
+        ["volume", "prune", "-f"],
+        ["network", "prune", "-f"],
+    ]
+
+    for (const args of cmds) {
+        spawn("docker", args, { stdio: "ignore" })
+    }
+}
+
+function registerCleanup() {
+    if (cleanupRegistered) return
+    cleanupRegistered = true
+
+    const handler = () => {
+        dockerCleanup()
+        process.exit()
+    }
+
+    process.on("SIGINT", handler)
+    process.on("SIGTERM", handler)
+    process.on("exit", dockerCleanup)
+}
+
+registerCleanup()
+
 export async function runContainer(
     image: string,
     command: string,
@@ -9,7 +40,17 @@ export async function runContainer(
     timeout = 5000
 ): Promise<string> {
     return new Promise((resolve, reject) => {
-        const docker = spawn("docker", ["run", "--rm", "--memory", `${memoryMB}m`, "--cpus", `${cpuCores}`, "-i", image, "bash", "-c", command])
+        const docker = spawn("docker", [
+            "run",
+            "--rm",
+            "--memory", `${memoryMB}m`,
+            "--cpus", `${cpuCores}`,
+            "-i",
+            image,
+            "bash",
+            "-c",
+            command
+        ])
 
         let stdout = ""
         let stderr = ""

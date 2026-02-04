@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import path from "path";
 
+interface TestcaseInput {
+    input: string;
+    output: string;
+    weight?: number;
+    is_sample?: boolean;
+}
+
+interface ProblemBody {
+    title: string;
+    statement: string;
+    setter_id: number;
+    testcases: TestcaseInput[];
+    time_limit_ms?: number;
+    memory_limit_kb?: number;
+    visibility?: "public" | "private" | "unlisted";
+}
+
+
 function generateSlug(title: string): string {
     return title
         .toLowerCase()
@@ -13,7 +31,7 @@ function generateSlug(title: string): string {
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
+        const body: ProblemBody = await req.json();
         const {
             title,
             statement,
@@ -123,7 +141,7 @@ export async function POST(req: NextRequest) {
                                         testcase.input,
                                         testcase.output,
                                         testcase.weight || 1,
-                                        (testcase.is_sample || i === 0) ? 1 : 0,
+                                        (testcase.is_sample === true || i === 0) ? 1 : 0,
                                     ],
                                     (err) => {
                                         if (err) {
