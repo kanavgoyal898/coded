@@ -4,6 +4,7 @@ import path from "path";
 
 interface SubmissionRow {
     id: number;
+    problem_id: number;
     problem_title: string;
     problem_slug: string;
     language: string;
@@ -11,6 +12,10 @@ interface SubmissionRow {
     score: number;
     execution_time_ms: number | null;
     created_at: string;
+}
+
+interface TestcaseRow {
+    total_weight: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -50,6 +55,7 @@ export async function GET(req: NextRequest) {
                 `
                 SELECT 
                     s.id,
+                    s.problem_id,
                     p.title as problem_title,
                     p.slug as problem_slug,
                     s.language,
@@ -63,10 +69,9 @@ export async function GET(req: NextRequest) {
                 ORDER BY s.created_at DESC
                 `,
                 [userId],
-                (err, submissions: SubmissionRow[]) => {
-                    db.close();
-
+                async (err, submissions: SubmissionRow[]) => {
                     if (err) {
+                        db.close();
                         resolve(
                             NextResponse.json(
                                 { error: "Failed to fetch submissions" },
@@ -76,8 +81,57 @@ export async function GET(req: NextRequest) {
                         return;
                     }
 
-                    resolve(
-                        NextResponse.json({ submissions: submissions || [] })
+                    if (!submissions || submissions.length === 0) {
+                        db.close();
+                        resolve(
+                            NextResponse.json({ submissions: [] })
+                        );
+                        return;
+                    }
+
+                    const problemIds = [...new Set(submissions.map(s => s.problem_id))];
+                    
+                    const placeholders = problemIds.map(() => '?').join(',');
+                    
+                    db.all(
+                        `
+                        SELECT 
+                            problem_id,
+                            SUM(weight) as total_weight
+                        FROM testcase
+                        WHERE problem_id IN (${placeholders}) AND is_sample = 0
+                        GROUP BY problem_id
+                        `,
+                        problemIds,
+                        (err, totals: (TestcaseRow & { problem_id: number })[]) => {
+                            db.close();
+
+                            if (err) {
+                                resolve(
+                                    NextResponse.json(
+                                        { error: "Failed to fetch testcase totals" },
+                                        { status: 500 }
+                                    )
+                                );
+                                return;
+                            }
+
+                            const totalMap = new Map<number, number>();
+                            totals?.forEach(t => {
+                                totalMap.set(t.problem_id, t.total_weight || 0);
+                            });
+
+                            const submissionsWithTotal = submissions.map(s => ({
+                                ...s,
+                                total_score: totalMap.get(s.problem_id) || 0
+                            }));
+
+                            resolve(
+                                NextResponse.json({ 
+                                    submissions: submissionsWithTotal 
+                                })
+                            );
+                        }
                     );
                 }
             );

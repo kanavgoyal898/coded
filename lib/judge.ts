@@ -34,7 +34,7 @@ export async function judge(
                 resolve({
                     score: 0,
                     total: 0,
-                    status: "runtime_error",
+                    status: "rejected",
                     runtime_log: "Database connection failed",
                 });
                 return;
@@ -53,7 +53,7 @@ export async function judge(
                         resolve({
                             score: 0,
                             total: 0,
-                            status: "runtime_error",
+                            status: "rejected",
                             runtime_log: "No testcases found",
                         });
                         return;
@@ -85,9 +85,9 @@ export async function judge(
                                 problemId,
                                 language,
                                 code,
-                                "compile_error",
+                                "rejected",
                                 0,
-                                compileResult.error,
+                                "Compilation Error: " + compileResult.error,
                                 executionTime,
                             ],
                             function (err) {
@@ -95,7 +95,7 @@ export async function judge(
                                 resolve({
                                     score: 0,
                                     total: totalWeight,
-                                    status: "compile_error",
+                                    status: "rejected",
                                     compile_log: compileResult.error,
                                     execution_time_ms: executionTime,
                                     submission_id: err ? undefined : this.lastID,
@@ -136,55 +136,20 @@ export async function judge(
                             allPassed = false;
                             const errorMsg =
                                 error instanceof Error ? error.message : "Unknown error";
-                            runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                } error: ${errorMsg}\n\n`;
-
+                            
                             if (errorMsg.includes("timeout")) {
-                                const executionTime = Date.now() - startTime;
-
-                                db.run(
-                                    `
-                                    INSERT INTO submission (
-                                        user_id, problem_id, language, source_code, 
-                                        status, score, compile_log, runtime_log, 
-                                        execution_time_ms, finished_at
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-                                    [
-                                        userId,
-                                        problemId,
-                                        language,
-                                        code,
-                                        "time_limit_exceeded",
-                                        earnedWeight,
-                                        compileLogs,
-                                        runtimeLogs,
-                                        executionTime,
-                                    ],
-                                    function (err) {
-                                        db.close();
-                                        resolve({
-                                            score: earnedWeight,
-                                            total: totalWeight,
-                                            status: "time_limit_exceeded",
-                                            compile_log: compileLogs,
-                                            runtime_log: runtimeLogs,
-                                            execution_time_ms: executionTime,
-                                            submission_id: err ? undefined : this.lastID,
-                                        });
-                                    }
-                                );
-                                return;
+                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
+                                    } - Time Limit Exceeded\n\n`;
+                            } else {
+                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
+                                    } - Runtime Error: ${errorMsg}\n\n`;
                             }
                         }
                     }
 
                     const executionTime = Date.now() - startTime;
 
-                    const finalStatus = allPassed
-                        ? "accepted"
-                        : earnedWeight > 0
-                            ? "rejected"
-                            : "rejected";
+                    const finalStatus = allPassed ? "accepted" : "rejected";
 
                     db.run(
                         `

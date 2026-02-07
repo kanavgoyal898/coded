@@ -11,6 +11,7 @@ type Submission = {
     language: string;
     status: string;
     score: number;
+    total_score: number;
     execution_time_ms: number | null;
     created_at: string;
 };
@@ -18,9 +19,6 @@ type Submission = {
 const statusLabels: Record<string, string> = {
     accepted: "Accepted",
     rejected: "Rejected",
-    runtime_error: "Runtime Error",
-    compile_error: "Compile Error",
-    time_limit_exceeded: "Time Limit Exceeded",
 };
 
 const languageLabels: Record<string, string> = {
@@ -172,9 +170,13 @@ export default function SubmissionsPage() {
                                         <TableCell>{submission.problem_title}</TableCell>
                                         <TableCell>{languageLabels[submission.language] || submission.language}</TableCell>
                                         <TableCell>
-                                            {statusLabels[submission.status] || submission.status}
+                                            <span>
+                                                { statusLabels[submission.status] || submission.status }
+                                            </span>
                                         </TableCell>
-                                        <TableCell>{submission.score}</TableCell>
+                                        <TableCell>
+                                           {submission.score} / {submission.total_score}
+                                        </TableCell>
                                         <TableCell>
                                             {new Date(submission.created_at).toLocaleString()}
                                         </TableCell>

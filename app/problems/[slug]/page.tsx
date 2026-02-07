@@ -146,7 +146,13 @@ export default function SubmitProblemPage() {
           <DialogHeader>
             <DialogTitle>Submission Result</DialogTitle>
             <DialogDescription className="text-sm">
-              {score && score.total > 0 ? `Score: ${score.score} / ${score.total}` : "Submission failed"}
+              {score && score.total > 0 ? (
+                <span className="text-base">
+                  Score: <span className="font-semibold">{score.score}/{score.total}</span>
+                </span>
+              ) : (
+                "Submission failed"
+              )}
             </DialogDescription>
           </DialogHeader>
           <DialogClose asChild>
