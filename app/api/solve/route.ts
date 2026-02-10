@@ -1,13 +1,18 @@
 import { judge } from "@/lib/judge";
 import { detectLanguage } from "@/lib/constants/languages";
+import { getSessionUserFromRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
+    const session = getSessionUserFromRequest(req);
+    if (!session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     try {
         const data = await req.formData();
         const file = data.get("file") as File | null;
         const problemIdStr = data.get("problem_id") as string | null;
-        const userIdStr = data.get("user_id") as string | null;
 
         if (!problemIdStr) {
             return NextResponse.json(
@@ -20,15 +25,6 @@ export async function POST(req: NextRequest) {
         if (isNaN(problemId)) {
             return NextResponse.json(
                 { error: "Invalid problem_id" },
-                { status: 400 }
-            );
-        }
-
-        const userId = userIdStr ? parseInt(userIdStr) : null;
-
-        if (!userId) {
-            return NextResponse.json(
-                { error: "user_id is required" },
                 { status: 400 }
             );
         }
@@ -46,7 +42,7 @@ export async function POST(req: NextRequest) {
         }
 
         const lang = detectLanguage(file ?? undefined);
-        const result = await judge(lang, code, problemId, userId);
+        const result = await judge(lang, code, problemId, session.userId);
 
         return NextResponse.json(result);
     } catch (error) {

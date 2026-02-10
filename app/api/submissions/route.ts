@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import path from "path";
+import { getSessionUserFromRequest } from "@/lib/auth";
 
 interface SubmissionRow {
     id: number;
@@ -14,29 +15,13 @@ interface SubmissionRow {
     created_at: string;
 }
 
-interface TestcaseRow {
-    total_weight: number;
-}
-
 export async function GET(req: NextRequest) {
-    const searchParams = req.nextUrl.searchParams;
-    const userIdStr = searchParams.get("user_id");
-
-    if (!userIdStr) {
-        return NextResponse.json(
-            { error: "user_id is required" },
-            { status: 400 }
-        );
+    const session = getSessionUserFromRequest(req);
+    if (!session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = parseInt(userIdStr);
-    if (isNaN(userId)) {
-        return NextResponse.json(
-            { error: "Invalid user_id" },
-            { status: 400 }
-        );
-    }
-
+    const userId = session.userId;
     const dbPath = path.join(process.cwd(), "database.db");
 
     return new Promise((resolve) => {
@@ -53,21 +38,21 @@ export async function GET(req: NextRequest) {
 
             db.all(
                 `
-                SELECT 
-                    s.id,
-                    s.problem_id,
-                    p.title as problem_title,
-                    p.slug as problem_slug,
-                    s.language,
-                    s.status,
-                    s.score,
-                    s.execution_time_ms,
-                    s.created_at
-                FROM submission s
-                JOIN problem p ON s.problem_id = p.id
-                WHERE s.user_id = ?
-                ORDER BY s.created_at DESC
-                `,
+        SELECT 
+            s.id,
+            s.problem_id,
+            p.title as problem_title,
+            p.slug as problem_slug,
+            s.language,
+            s.status,
+            s.score,
+            s.execution_time_ms,
+            s.created_at
+        FROM submission s
+        JOIN problem p ON s.problem_id = p.id
+        WHERE s.user_id = ?
+        ORDER BY s.created_at DESC
+        `,
                 [userId],
                 async (err, submissions: SubmissionRow[]) => {
                     if (err) {
@@ -83,27 +68,26 @@ export async function GET(req: NextRequest) {
 
                     if (!submissions || submissions.length === 0) {
                         db.close();
-                        resolve(
-                            NextResponse.json({ submissions: [] })
-                        );
+                        resolve(NextResponse.json({ submissions: [] }));
                         return;
                     }
 
-                    const problemIds = [...new Set(submissions.map(s => s.problem_id))];
-                    
-                    const placeholders = problemIds.map(() => '?').join(',');
-                    
+                    const problemIds = [
+                        ...new Set(submissions.map((s) => s.problem_id)),
+                    ];
+                    const placeholders = problemIds.map(() => "?").join(",");
+
                     db.all(
                         `
-                        SELECT 
-                            problem_id,
-                            SUM(weight) as total_weight
+                        SELECT  problem_id, SUM(weight) as total_weight
                         FROM testcase
                         WHERE problem_id IN (${placeholders}) AND is_sample = 0
-                        GROUP BY problem_id
-                        `,
+                        GROUP BY problem_id`,
                         problemIds,
-                        (err, totals: (TestcaseRow & { problem_id: number })[]) => {
+                        (
+                            err,
+                            totals: ({ problem_id: number; total_weight: number })[]
+                        ) => {
                             db.close();
 
                             if (err) {
@@ -117,19 +101,17 @@ export async function GET(req: NextRequest) {
                             }
 
                             const totalMap = new Map<number, number>();
-                            totals?.forEach(t => {
+                            totals?.forEach((t) => {
                                 totalMap.set(t.problem_id, t.total_weight || 0);
                             });
 
-                            const submissionsWithTotal = submissions.map(s => ({
+                            const submissionsWithTotal = submissions.map((s) => ({
                                 ...s,
-                                total_score: totalMap.get(s.problem_id) || 0
+                                total_score: totalMap.get(s.problem_id) || 0,
                             }));
 
                             resolve(
-                                NextResponse.json({ 
-                                    submissions: submissionsWithTotal 
-                                })
+                                NextResponse.json({ submissions: submissionsWithTotal })
                             );
                         }
                     );

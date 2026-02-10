@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import path from "path";
+import { getSessionUserFromRequest } from "@/lib/auth";
 
 interface TestcaseInput {
     input: string;
@@ -12,13 +13,11 @@ interface TestcaseInput {
 interface ProblemBody {
     title: string;
     statement: string;
-    setter_id: number;
     testcases: TestcaseInput[];
     time_limit_ms?: number;
     memory_limit_kb?: number;
-    visibility?: "public" | "private" | "unlisted";
+    visibility?: "public" | "private";
 }
-
 
 function generateSlug(title: string): string {
     return title
@@ -30,40 +29,38 @@ function generateSlug(title: string): string {
 }
 
 export async function POST(req: NextRequest) {
+    const session = getSessionUserFromRequest(req);
+    if (!session) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     try {
         const body: ProblemBody = await req.json();
         const {
             title,
             statement,
-            setter_id,
             testcases,
             time_limit_ms,
             memory_limit_kb,
             visibility,
         } = body;
 
-        if (
-            !title ||
-            !statement ||
-            !setter_id ||
-            !testcases ||
-            testcases.length === 0
-        ) {
+        if (!title || !statement || !testcases || testcases.length === 0) {
             return NextResponse.json(
                 { error: "Missing required fields" },
-                { status: 400 },
+                { status: 400 }
             );
         }
 
         const totalWeight = testcases.reduce(
             (sum, testcase) => sum + (testcase.weight || 1),
-            0,
+            0
         );
 
         if (totalWeight <= 0) {
             return NextResponse.json(
                 { error: "Total weight (credits) must be greater than zero" },
-                { status: 400 },
+                { status: 400 }
             );
         }
 
@@ -76,102 +73,109 @@ export async function POST(req: NextRequest) {
                     resolve(
                         NextResponse.json(
                             { error: "Database connection failed" },
-                            { status: 500 },
-                        ),
+                            { status: 500 }
+                        )
                     );
                     return;
                 }
 
-                db.get("SELECT id FROM problem WHERE slug = ?", [slug], (err, row) => {
-                    if (err) {
-                        db.close();
-                        resolve(
-                            NextResponse.json({ error: "Database error" }, { status: 500 }),
-                        );
-                        return;
-                    }
+                db.get(
+                    "SELECT id FROM problem WHERE slug = ?",
+                    [slug],
+                    (err, row) => {
+                        if (err) {
+                            db.close();
+                            resolve(
+                                NextResponse.json(
+                                    { error: "Database error" },
+                                    { status: 500 }
+                                )
+                            );
+                            return;
+                        }
 
-                    if (row) {
-                        db.close();
-                        resolve(
-                            NextResponse.json(
-                                { error: "A problem with this title already exists" },
-                                { status: 409 },
-                            ),
-                        );
-                        return;
-                    }
+                        if (row) {
+                            db.close();
+                            resolve(
+                                NextResponse.json(
+                                    { error: "A problem with this title already exists" },
+                                    { status: 409 }
+                                )
+                            );
+                            return;
+                        }
 
-                    db.run(
-                        `
+                        db.run(
+                            `
                             INSERT INTO problem (title, slug, statement, setter_id, time_limit_ms, memory_limit_kb, visibility)
                             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                        [
-                            title,
-                            slug,
-                            statement,
-                            setter_id,
-                            time_limit_ms || 1024,
-                            memory_limit_kb || 262144,
-                            visibility || "public",
-                        ],
-                        function (err) {
-                            if (err) {
-                                db.close();
-                                resolve(
-                                    NextResponse.json(
-                                        { error: "Failed to insert problem" },
-                                        { status: 500 },
-                                    ),
-                                );
-                                return;
-                            }
+                            [
+                                title,
+                                slug,
+                                statement,
+                                session.userId,
+                                time_limit_ms || 1024,
+                                memory_limit_kb || 262144,
+                                visibility || "public",
+                            ],
+                            function (err) {
+                                if (err) {
+                                    db.close();
+                                    resolve(
+                                        NextResponse.json(
+                                            { error: "Failed to insert problem" },
+                                            { status: 500 }
+                                        )
+                                    );
+                                    return;
+                                }
 
-                            const problemId = this.lastID;
-                            let completed = 0;
+                                const problemId = this.lastID;
+                                let completed = 0;
 
-                            for (let i = 0; i < testcases.length; i++) {
-                                const testcase = testcases[i];
-                                db.run(
-                                    `
+                                for (let i = 0; i < testcases.length; i++) {
+                                    const testcase = testcases[i];
+                                    db.run(
+                                        `
                                         INSERT INTO testcase (problem_id, input_data, output_data, weight, is_sample)
                                         VALUES (?, ?, ?, ?, ?)`,
-                                    [
-                                        problemId,
-                                        testcase.input,
-                                        testcase.output,
-                                        testcase.weight || 1,
-                                        (testcase.is_sample === true || i === 0) ? 1 : 0,
-                                    ],
-                                    (err) => {
-                                        if (err) {
-                                            console.error("Error inserting testcase:", err);
-                                        }
+                                        [
+                                            problemId,
+                                            testcase.input,
+                                            testcase.output,
+                                            testcase.weight || 1,
+                                            testcase.is_sample === true || i === 0 ? 1 : 0,
+                                        ],
+                                        (err) => {
+                                            if (err) {
+                                                console.error("Error inserting testcase:", err);
+                                            }
 
-                                        completed++;
-                                        if (completed === testcases.length) {
-                                            db.close();
-                                            resolve(
-                                                NextResponse.json({
-                                                    id: problemId,
-                                                    slug: slug,
-                                                    message: "Problem added successfully",
-                                                }),
-                                            );
+                                            completed++;
+                                            if (completed === testcases.length) {
+                                                db.close();
+                                                resolve(
+                                                    NextResponse.json({
+                                                        id: problemId,
+                                                        slug: slug,
+                                                        message: "Problem added successfully",
+                                                    })
+                                                );
+                                            }
                                         }
-                                    },
-                                );
+                                    );
+                                }
                             }
-                        },
-                    );
-                });
+                        );
+                    }
+                );
             });
         });
     } catch (error) {
         console.error("Error adding problem:", error);
         return NextResponse.json(
             { error: "Failed to add problem" },
-            { status: 500 },
+            { status: 500 }
         );
     }
 }
