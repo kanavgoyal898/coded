@@ -118,7 +118,7 @@ export default function SubmitProblemPage() {
       )}
 
       <div className="space-y-2">
-        <Label>Solution File (.c, .cpp, .py)</Label>
+        <Label>Solution File</Label>
 
         <Button
           variant="outline"
@@ -131,7 +131,6 @@ export default function SubmitProblemPage() {
         <input
           id="file"
           type="file"
-          accept=".c,.cpp,.py"
           className="hidden"
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />

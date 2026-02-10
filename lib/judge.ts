@@ -2,6 +2,7 @@ import sqlite3 from "sqlite3";
 import path from "path";
 import { randomUUID } from "crypto";
 import { runContainer } from "./docker";
+import { LANGUAGES, LanguageKey } from "./constants/languages";
 
 interface JudgeResult {
     score: number;
@@ -19,6 +20,56 @@ interface Testcase {
     output_data: string;
     weight: number | null;
     is_sample: number;
+}
+
+interface CompileResult {
+    error?: string;
+    log?: string;
+}
+
+async function compileCode(lang: string, code: string): Promise<CompileResult> {
+    const config = LANGUAGES[lang as LanguageKey];
+    if (!config) return { error: "Unsupported language" };
+
+    const encodedCode = Buffer.from(code).toString("base64");
+    const tempFile = `/tmp/judge_${randomUUID().replace(/-/g, "")}`;
+
+    try {
+        const result = await runContainer(
+            config.dockerImage,
+            config.getCompileCommand(encodedCode, tempFile),
+            "",
+            256,
+            0.5,
+            10000
+        );
+        return { log: result };
+    } catch (error) {
+        return {
+            error: error instanceof Error ? error.message : "Compilation failed",
+        };
+    }
+}
+
+async function runCode(
+    lang: string,
+    code: string,
+    input: string
+): Promise<string> {
+    const config = LANGUAGES[lang as LanguageKey];
+    if (!config) throw new Error("Unsupported language");
+
+    const encodedCode = Buffer.from(code).toString("base64");
+    const tempFile = `/tmp/judge_${randomUUID().replace(/-/g, "")}`;
+
+    return await runContainer(
+        config.dockerImage,
+        config.getRunCommand(encodedCode, tempFile),
+        input,
+        256,
+        0.5,
+        5000
+    );
 }
 
 export async function judge(
@@ -42,11 +93,10 @@ export async function judge(
             }
 
             db.all(
-                `
-                SELECT id, input_data, output_data, weight, is_sample
-                FROM testcase 
-                WHERE problem_id = ? 
-                ORDER BY id`,
+                `SELECT id, input_data, output_data, weight, is_sample
+                 FROM testcase
+                 WHERE problem_id = ?
+                 ORDER BY id`,
                 [problemId],
                 async (err, testcases: Testcase[]) => {
                     if (err || !testcases || testcases.length === 0) {
@@ -75,10 +125,9 @@ export async function judge(
                         const executionTime = Date.now() - startTime;
 
                         db.run(
-                            `
-                            INSERT INTO submission (
-                                user_id, problem_id, language, source_code, 
-                                status, score, compile_log, execution_time_ms, 
+                            `INSERT INTO submission (
+                                user_id, problem_id, language, source_code,
+                                status, score, compile_log, execution_time_ms,
                                 finished_at
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
                             [
@@ -110,19 +159,10 @@ export async function judge(
 
                     for (const testcase of testcases) {
                         try {
-                            const output = await runCode(
-                                language,
-                                code,
-                                testcase.input_data
-                            );
+                            const output = await runCode(language, code, testcase.input_data);
 
                             const expected = testcase.output_data.trim();
                             const actual = output.trim();
-
-                            console.log(`Testcase ${testcase.id}:`);
-                            console.log(`Expected: "${expected}"`);
-                            console.log(`Got: "${actual}"`);
-                            console.log(`Match: ${actual === expected}`);
 
                             if (actual === expected) {
                                 if (!testcase.is_sample) {
@@ -130,33 +170,32 @@ export async function judge(
                                 }
                             } else {
                                 allPassed = false;
-                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                    } failed\nExpected: "${expected}"\nGot: "${actual}"\n\n`;
+                                runtimeLogs += `Testcase ${testcase.id}${
+                                    testcase.is_sample ? " (sample)" : ""
+                                } failed\nExpected: "${expected}"\nGot: "${actual}"\n\n`;
                             }
                         } catch (error) {
                             allPassed = false;
                             const errorMsg =
                                 error instanceof Error ? error.message : "Unknown error";
-                            
-                            if (errorMsg.includes("timeout")) {
-                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                    } - Time Limit Exceeded\n\n`;
-                            } else {
-                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                    } - Runtime Error: ${errorMsg}\n\n`;
-                            }
+
+                            runtimeLogs += `Testcase ${testcase.id}${
+                                testcase.is_sample ? " (sample)" : ""
+                            } - ${
+                                errorMsg.includes("timeout")
+                                    ? "Time Limit Exceeded"
+                                    : `Runtime Error: ${errorMsg}`
+                            }\n\n`;
                         }
                     }
 
                     const executionTime = Date.now() - startTime;
-
                     const finalStatus = allPassed ? "accepted" : "rejected";
 
                     db.run(
-                        `
-                        INSERT INTO submission (
-                            user_id, problem_id, language, source_code, 
-                            status, score, compile_log, runtime_log, 
+                        `INSERT INTO submission (
+                            user_id, problem_id, language, source_code,
+                            status, score, compile_log, runtime_log,
                             execution_time_ms, finished_at
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
                         [
@@ -187,182 +226,4 @@ export async function judge(
             );
         });
     });
-}
-
-interface CompileResult {
-    error?: string;
-    log?: string;
-}
-
-async function compileCode(
-    lang: string,
-    code: string
-): Promise<CompileResult> {
-    const encodedCode = Buffer.from(code).toString('base64');
-    const tempFile = `/tmp/judge_${randomUUID().replace(/-/g, '')}`;
-
-    try {
-        switch (lang) {
-            case "c": {
-                const command = `
-                    echo '${encodedCode}' | base64 -d > ${tempFile}.c
-                    gcc ${tempFile}.c -o ${tempFile} 2>&1
-                    EXIT_CODE=$?
-                    rm -f ${tempFile}.c ${tempFile}
-                    if [ $EXIT_CODE -ne 0 ]; then
-                        exit 1
-                    fi
-                    echo "Compilation successful"
-                `;
-                
-                try {
-                    const result = await runContainer(
-                        "judge-c",
-                        command,
-                        "",
-                        256,
-                        0.5,
-                        10000
-                    );
-                    return { log: result };
-                } catch (error) {
-                    return { 
-                        error: error instanceof Error ? error.message : "Compilation failed" 
-                    };
-                }
-            }
-            case "cpp": {
-                const command = `
-                    echo '${encodedCode}' | base64 -d > ${tempFile}.cpp
-                    g++ ${tempFile}.cpp -o ${tempFile} 2>&1
-                    EXIT_CODE=$?
-                    rm -f ${tempFile}.cpp ${tempFile}
-                    if [ $EXIT_CODE -ne 0 ]; then
-                        exit 1
-                    fi
-                    echo "Compilation successful"
-                `;
-                
-                try {
-                    const result = await runContainer(
-                        "judge-cpp",
-                        command,
-                        "",
-                        256,
-                        0.5,
-                        10000
-                    );
-                    return { log: result };
-                } catch (error) {
-                    return { 
-                        error: error instanceof Error ? error.message : "Compilation failed" 
-                    };
-                }
-            }
-            case "python": {
-                const command = `
-                    echo '${encodedCode}' | base64 -d > ${tempFile}.py
-                    python3 -m py_compile ${tempFile}.py 2>&1
-                    EXIT_CODE=$?
-                    rm -f ${tempFile}.py
-                    if [ $EXIT_CODE -ne 0 ]; then
-                        exit 1
-                    fi
-                    echo "Syntax check successful"
-                `;
-                
-                try {
-                    const result = await runContainer(
-                        "judge-python",
-                        command,
-                        "",
-                        256,
-                        0.5,
-                        10000
-                    );
-                    return { log: result };
-                } catch (error) {
-                    return { 
-                        error: error instanceof Error ? error.message : "Syntax check failed" 
-                    };
-                }
-            }
-            default:
-                return { error: "Unsupported language" };
-        }
-    } catch (error) {
-        return {
-            error: error instanceof Error ? error.message : "Compilation failed",
-        };
-    }
-}
-
-async function runCode(
-    lang: string,
-    code: string,
-    input: string
-): Promise<string> {
-    const encodedCode = Buffer.from(code).toString('base64');
-    const tempFile = `/tmp/judge_${randomUUID().replace(/-/g, '')}`;
-
-    try {
-        switch (lang) {
-            case "c": {
-                const command = `
-                    echo '${encodedCode}' | base64 -d > ${tempFile}.c && \
-                    gcc ${tempFile}.c -o ${tempFile} >/dev/null 2>&1 && \
-                    ${tempFile}; \
-                    rm -f ${tempFile}.c ${tempFile}
-                `;
-                
-                return await runContainer(
-                    "judge-c",
-                    command,
-                    input,
-                    256,
-                    0.5,
-                    5000
-                );
-            }
-            case "cpp": {
-                const command = `
-                    echo '${encodedCode}' | base64 -d > ${tempFile}.cpp && \
-                    g++ ${tempFile}.cpp -o ${tempFile} >/dev/null 2>&1 && \
-                    ${tempFile}; \
-                    rm -f ${tempFile}.cpp ${tempFile}
-                `;
-                
-                return await runContainer(
-                    "judge-cpp",
-                    command,
-                    input,
-                    256,
-                    0.5,
-                    5000
-                );
-            }
-            case "python": {
-                const command = `
-                    echo '${encodedCode}' | base64 -d > ${tempFile}.py && \
-                    python3 ${tempFile}.py; \
-                    rm -f ${tempFile}.py
-                `;
-                
-                return await runContainer(
-                    "judge-python",
-                    command,
-                    input,
-                    256,
-                    0.5,
-                    5000
-                );
-            }
-            default:
-                throw new Error("Unsupported language");
-        }
-    } catch (error) {
-        throw new Error(
-            error instanceof Error ? error.message : "Execution failed"
-        );
-    }
 }

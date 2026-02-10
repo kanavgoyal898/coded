@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getLanguageLabel } from "@/lib/constants/languages";
 
 type Submission = {
     id: number;
@@ -19,12 +20,6 @@ type Submission = {
 const statusLabels: Record<string, string> = {
     accepted: "Accepted",
     rejected: "Rejected",
-};
-
-const languageLabels: Record<string, string> = {
-    c: "C",
-    cpp: "C++",
-    python: "Python",
 };
 
 export default function SubmissionsPage() {
@@ -99,7 +94,6 @@ export default function SubmissionsPage() {
     const arrow = (key: keyof Submission) =>
         sortConfig.key === key ? (sortConfig.direction === "asc" ? " ↑" : " ↓") : "";
 
-
     if (error) {
         return (
             <div className="container mx-auto py-8">
@@ -168,14 +162,14 @@ export default function SubmissionsPage() {
                                             {(currentPage - 1) * rowsPerPage + i + 1}
                                         </TableCell>
                                         <TableCell>{submission.problem_title}</TableCell>
-                                        <TableCell>{languageLabels[submission.language] || submission.language}</TableCell>
+                                        <TableCell>{getLanguageLabel(submission.language)}</TableCell>
                                         <TableCell>
                                             <span>
-                                                { statusLabels[submission.status] || submission.status }
+                                                {statusLabels[submission.status] || submission.status}
                                             </span>
                                         </TableCell>
                                         <TableCell>
-                                           {submission.score} / {submission.total_score}
+                                            {submission.score} / {submission.total_score}
                                         </TableCell>
                                         <TableCell>
                                             {new Date(submission.created_at).toLocaleString()}
