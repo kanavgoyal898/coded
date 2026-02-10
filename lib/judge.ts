@@ -1,5 +1,6 @@
 import sqlite3 from "sqlite3";
 import path from "path";
+import { randomUUID } from "crypto";
 import { runContainer } from "./docker";
 
 interface JudgeResult {
@@ -198,7 +199,7 @@ async function compileCode(
     code: string
 ): Promise<CompileResult> {
     const encodedCode = Buffer.from(code).toString('base64');
-    const tempFile = `/tmp/main`;
+    const tempFile = `/tmp/judge_${randomUUID().replace(/-/g, '')}`;
 
     try {
         switch (lang) {
@@ -207,6 +208,7 @@ async function compileCode(
                     echo '${encodedCode}' | base64 -d > ${tempFile}.c
                     gcc ${tempFile}.c -o ${tempFile} 2>&1
                     EXIT_CODE=$?
+                    rm -f ${tempFile}.c ${tempFile}
                     if [ $EXIT_CODE -ne 0 ]; then
                         exit 1
                     fi
@@ -234,6 +236,7 @@ async function compileCode(
                     echo '${encodedCode}' | base64 -d > ${tempFile}.cpp
                     g++ ${tempFile}.cpp -o ${tempFile} 2>&1
                     EXIT_CODE=$?
+                    rm -f ${tempFile}.cpp ${tempFile}
                     if [ $EXIT_CODE -ne 0 ]; then
                         exit 1
                     fi
@@ -261,6 +264,7 @@ async function compileCode(
                     echo '${encodedCode}' | base64 -d > ${tempFile}.py
                     python3 -m py_compile ${tempFile}.py 2>&1
                     EXIT_CODE=$?
+                    rm -f ${tempFile}.py
                     if [ $EXIT_CODE -ne 0 ]; then
                         exit 1
                     fi
@@ -299,7 +303,7 @@ async function runCode(
     input: string
 ): Promise<string> {
     const encodedCode = Buffer.from(code).toString('base64');
-    const tempFile = `/tmp/main`;
+    const tempFile = `/tmp/judge_${randomUUID().replace(/-/g, '')}`;
 
     try {
         switch (lang) {
@@ -307,7 +311,8 @@ async function runCode(
                 const command = `
                     echo '${encodedCode}' | base64 -d > ${tempFile}.c && \
                     gcc ${tempFile}.c -o ${tempFile} >/dev/null 2>&1 && \
-                    ${tempFile}
+                    ${tempFile}; \
+                    rm -f ${tempFile}.c ${tempFile}
                 `;
                 
                 return await runContainer(
@@ -323,7 +328,8 @@ async function runCode(
                 const command = `
                     echo '${encodedCode}' | base64 -d > ${tempFile}.cpp && \
                     g++ ${tempFile}.cpp -o ${tempFile} >/dev/null 2>&1 && \
-                    ${tempFile}
+                    ${tempFile}; \
+                    rm -f ${tempFile}.cpp ${tempFile}
                 `;
                 
                 return await runContainer(
@@ -338,7 +344,8 @@ async function runCode(
             case "python": {
                 const command = `
                     echo '${encodedCode}' | base64 -d > ${tempFile}.py && \
-                    python3 ${tempFile}.py
+                    python3 ${tempFile}.py; \
+                    rm -f ${tempFile}.py
                 `;
                 
                 return await runContainer(
