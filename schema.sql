@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
     role TEXT CHECK(role IN ('admin', 'setter', 'solver')) DEFAULT 'solver',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -47,7 +48,5 @@ CREATE TABLE IF NOT EXISTS submission (
     FOREIGN KEY (user_id) REFERENCES user(id),
     FOREIGN KEY (problem_id) REFERENCES problem(id)
 );
-
-INSERT INTO user (name, email, role) VALUES ('Test User', 'test@example.com', 'admin');
 
 PRAGMA foreign_keys = ON;

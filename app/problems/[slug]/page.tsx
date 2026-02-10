@@ -56,10 +56,13 @@ export default function SubmitProblemPage() {
     const formData = new FormData()
     formData.append("file", file)
     formData.append("problem_id", problem.id.toString())
-    formData.append("user_id", "1")
 
     try {
       const res = await fetch("/api/solve", { method: "POST", body: formData })
+      if (res.status === 401) {
+        window.location.href = "/login"
+        return
+      }
       const data = await res.json()
       setScore({ score: data.score, total: data.total })
     } catch {
@@ -70,8 +73,18 @@ export default function SubmitProblemPage() {
     }
   }
 
-  if (error || !problem) {
+  if (error) {
     return <div className="text-center py-8 text-destructive text-sm">{error}</div>
+  }
+
+  if (!problem) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
+        <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+        <div className="h-4 w-64 bg-muted animate-pulse rounded" />
+        <div className="h-32 bg-muted animate-pulse rounded" />
+      </div>
+    )
   }
 
   return (
@@ -135,7 +148,11 @@ export default function SubmitProblemPage() {
           onChange={(e) => setFile(e.target.files?.[0] || null)}
         />
 
-        <Button className="w-full" disabled={!file || submitting} onClick={submit}>
+        <Button
+          className="w-full"
+          disabled={!file || submitting}
+          onClick={submit}
+        >
           {submitting ? "Submitting..." : "Submit Solution"}
         </Button>
       </div>
@@ -147,7 +164,10 @@ export default function SubmitProblemPage() {
             <DialogDescription className="text-sm">
               {score && score.total > 0 ? (
                 <span className="text-base">
-                  Score: <span className="font-semibold">{score.score}/{score.total}</span>
+                  Score:{" "}
+                  <span className="font-semibold">
+                    {score.score}/{score.total}
+                  </span>
                 </span>
               ) : (
                 "Submission failed"

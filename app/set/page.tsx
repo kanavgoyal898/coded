@@ -23,10 +23,17 @@ export default function AddProblemPage() {
     { input: "", output: "", weight: 1, is_sample: true },
   ]);
   const [open, setOpen] = useState(false);
-  const [result, setResult] = useState<{ id?: number; slug?: string; error?: string } | null>(null);
+  const [result, setResult] = useState<{
+    id?: number;
+    slug?: string;
+    error?: string;
+  } | null>(null);
 
   const addTestcase = () => {
-    setTestcases([...testcases, { input: "", output: "", weight: 1, is_sample: false }]);
+    setTestcases([
+      ...testcases,
+      { input: "", output: "", weight: 1, is_sample: false },
+    ]);
   };
 
   const removeTestcase = (index: number) => {
@@ -62,7 +69,10 @@ export default function AddProblemPage() {
       return;
     }
 
-    if (testcases.length === 0 || testcases.some((t) => !t.input || !t.output)) {
+    if (
+      testcases.length === 0 ||
+      testcases.some((t) => !t.input || !t.output)
+    ) {
       setResult({ error: "At least one valid testcase required" });
       setOpen(true);
       return;
@@ -86,12 +96,16 @@ export default function AddProblemPage() {
         body: JSON.stringify({
           title,
           statement,
-          setter_id: 1,
           time_limit_ms: parseInt(timeLimit),
           memory_limit_kb: parseInt(memoryLimit),
           testcases,
         }),
       });
+
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
 
       const data = await res.json();
 
@@ -165,7 +179,11 @@ export default function AddProblemPage() {
                 )}
               </span>
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => toggleSample(i)}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => toggleSample(i)}
+                >
                   {testcase.is_sample ? "Unmark Sample" : "Mark as Sample"}
                 </Button>
                 {testcases.length > 1 && (

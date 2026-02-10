@@ -39,7 +39,11 @@ export default function SubmissionsPage() {
     useEffect(() => {
         async function fetchSubmissions() {
             try {
-                const res = await fetch("/api/submissions?user_id=1");
+                const res = await fetch("/api/submissions");
+                if (res.status === 401) {
+                    router.push("/login");
+                    return;
+                }
                 if (!res.ok) throw new Error("Failed to fetch submissions");
                 const data = await res.json();
                 setSubmissions(data.submissions);
@@ -50,7 +54,7 @@ export default function SubmissionsPage() {
             }
         }
         fetchSubmissions();
-    }, []);
+    }, [router]);
 
     const requestSort = (key: keyof Submission) => {
         setSortConfig((prev) => ({
@@ -162,7 +166,9 @@ export default function SubmissionsPage() {
                                             {(currentPage - 1) * rowsPerPage + i + 1}
                                         </TableCell>
                                         <TableCell>{submission.problem_title}</TableCell>
-                                        <TableCell>{getLanguageLabel(submission.language)}</TableCell>
+                                        <TableCell>
+                                            {getLanguageLabel(submission.language)}
+                                        </TableCell>
                                         <TableCell>
                                             <span>
                                                 {statusLabels[submission.status] || submission.status}
