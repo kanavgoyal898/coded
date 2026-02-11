@@ -166,89 +166,107 @@ export async function POST(req: NextRequest) {
                         return;
                     }
 
-                    db!.run(
-                        `INSERT INTO user (name, email, password, role) VALUES (?, ?, ?, 'solver')`,
-                        [trimmedName, trimmedEmail, passwordHash],
-                        function (err) {
-                            if (err) {
+                    db!.get("SELECT email FROM setter WHERE email = ? COLLATE NOCASE",
+                        [trimmedEmail],
+                        (setterErr, setterRow) => {
+                            if (setterErr) {
                                 closeDb(db!).catch(() => { });
-
-                                const errorMsg = (err as Error).message || "";
-
-                                if (errorMsg.includes("UNIQUE") || errorMsg.includes("constraint")) {
-                                    resolve(
-                                        NextResponse.json(
-                                            { error: "An account with this email already exists." },
-                                            { status: 409 }
-                                        )
-                                    );
-                                    return;
-                                }
-
                                 resolve(
                                     NextResponse.json(
-                                        { error: "Failed to create account. Please try again." },
+                                        { error: "Failed to verify account role. Please try again." },
                                         { status: 500 }
                                     )
                                 );
                                 return;
                             }
 
-                            if (!this || typeof this.lastID !== "number") {
-                                closeDb(db!).catch(() => { });
-                                resolve(
-                                    NextResponse.json(
-                                        { error: "Failed to retrieve account ID. Please try again." },
-                                        { status: 500 }
-                                    )
-                                );
-                                return;
-                            }
+                            const role = setterRow ? "setter" : "solver";
 
-                            const userId = this.lastID;
+                            db!.run(
+                                `INSERT INTO user (name, email, password, role) VALUES (?, ?, ?, ?)`,
+                                [trimmedName, trimmedEmail, passwordHash, role],
+                                function (err) {
+                                    if (err) {
+                                        closeDb(db!).catch(() => { });
 
-                            db!.get(
-                                "SELECT id, name, email, role FROM user WHERE id = ?",
-                                [userId],
-                                (err, user: UserRow) => {
-                                    closeDb(db!).catch(() => { });
+                                        const errorMsg = (err as Error).message || "";
 
-                                    if (err || !user) {
+                                        if (errorMsg.includes("UNIQUE") || errorMsg.includes("constraint")) {
+                                            resolve(
+                                                NextResponse.json(
+                                                    { error: "An account with this email already exists." },
+                                                    { status: 409 }
+                                                )
+                                            );
+                                            return;
+                                        }
+
                                         resolve(
                                             NextResponse.json(
-                                                { error: "Account created but session could not be established." },
+                                                { error: "Failed to create account. Please try again." },
                                                 { status: 500 }
                                             )
                                         );
                                         return;
                                     }
 
-                                    const token = createToken(user.id, user.role);
-                                    const response = NextResponse.json({
-                                        user: {
-                                            id: user.id,
-                                            name: user.name,
-                                            email: user.email,
-                                            role: user.role,
-                                        },
-                                    });
+                                    if (!this || typeof this.lastID !== "number") {
+                                        closeDb(db!).catch(() => { });
+                                        resolve(
+                                            NextResponse.json(
+                                                { error: "Failed to retrieve account ID. Please try again." },
+                                                { status: 500 }
+                                            )
+                                        );
+                                        return;
+                                    }
 
-                                    response.cookies.set(COOKIE_NAME, token, {
-                                        httpOnly: true,
-                                        secure: process.env.NODE_ENV === "production",
-                                        sameSite: "lax",
-                                        maxAge: 60 * 60 * 24 * 7,
-                                        path: "/",
-                                    });
+                                    const userId = this.lastID;
 
-                                    resolve(response);
+                                    db!.get(
+                                        "SELECT id, name, email, role FROM user WHERE id = ?",
+                                        [userId],
+                                        (err, user: UserRow) => {
+                                            closeDb(db!).catch(() => { });
+
+                                            if (err || !user) {
+                                                resolve(
+                                                    NextResponse.json(
+                                                        { error: "Account created but session could not be established." },
+                                                        { status: 500 }
+                                                    )
+                                                );
+                                                return;
+                                            }
+
+                                            const token = createToken(user.id, user.role);
+                                            const response = NextResponse.json({
+                                                user: {
+                                                    id: user.id,
+                                                    name: user.name,
+                                                    email: user.email,
+                                                    role: user.role,
+                                                },
+                                            });
+
+                                            response.cookies.set(COOKIE_NAME, token, {
+                                                httpOnly: true,
+                                                secure: process.env.NODE_ENV === "production",
+                                                sameSite: "lax",
+                                                maxAge: 60 * 60 * 24 * 7,
+                                                path: "/",
+                                            });
+
+                                            resolve(response);
+                                        });
                                 }
                             );
                         }
                     );
                 }
             );
-        });
+        }
+        );
     } catch (error) {
         if (db) await closeDb(db).catch(() => { });
 
