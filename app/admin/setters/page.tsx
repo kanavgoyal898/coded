@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, Trash } from "lucide-react";
+
 
 type SetterEntry = {
     email: string;
@@ -273,7 +275,7 @@ export default function AdminSettersPage() {
                     <Input
                         id="email-input"
                         type="email"
-                        placeholder="user@example.com"
+                        placeholder="user@email.com"
                         value={newEmail}
                         onChange={(e) => {
                             setNewEmail(e.target.value);
@@ -288,7 +290,7 @@ export default function AdminSettersPage() {
                         autoComplete="email"
                     />
                     <Button type="submit" disabled={adding || !newEmail.trim()}>
-                        {adding ? "Adding…" : "Add"}
+                        {adding ? <span className="text-xs">Adding…</span> : <Plus className="h-6 w-6" />}
                     </Button>
                 </div>
 
@@ -376,15 +378,19 @@ export default function AdminSettersPage() {
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <Button
-                                        variant="destructive"
-                                        size="sm"
+                                        variant="ghost"
+                                        size="icon"
                                         disabled={removing === s.email}
                                         onClick={() => {
                                             clearMessages();
                                             handleRemove(s.email);
                                         }}
                                     >
-                                        {removing === s.email ? "Removing…" : "Remove"}
+                                        {removing === s.email ? (
+                                            <span className="text-xs">Deleting…</span>
+                                        ) : (
+                                            <Trash className="h-6 w-6 text-destructive" />
+                                        )}
                                     </Button>
                                 </TableCell>
                             </TableRow>
