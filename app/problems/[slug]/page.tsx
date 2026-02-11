@@ -347,18 +347,21 @@ export default function SubmitProblemPage() {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Submission Result</DialogTitle>
-            <DialogDescription className="text-sm space-y-2">
+            </DialogHeader>
+            
+            <div className="text-sm space-y-2 mt-2">
               {submissionError ? (
                 <div className="text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
                   {submissionError}
                 </div>
               ) : score ? (
-                <>
-                  <div className="text-base">
+                <div>
+                  <div className="text-sm">
                     Score:{" "}
                     <span className="font-semibold">
                       {score.score}/{score.total}
                     </span>
+
                     {score.score === score.total ? (
                       <span className="ml-2 text-green-600">All tests passed!</span>
                     ) : score.score > 0 ? (
@@ -385,14 +388,13 @@ export default function SubmitProblemPage() {
                       </pre>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
                 <div className="text-muted-foreground">
                   No submission result available.
                 </div>
               )}
-            </DialogDescription>
-          </DialogHeader>
+          </div>
           <DialogClose asChild>
             <Button variant="outline">Close</Button>
           </DialogClose>
