@@ -15,10 +15,27 @@ export function NavigationBar() {
     return (
         <header className="sticky top-0 z-100">
             <div className="max-w-4xl mx-auto px-2 h-12 flex flex-row items-center justify-between gap-2">
-                <div className="flex items-center gap-8">
-                    <Link href="/" className="flex flex-row justify-center items-center gap-2 font-bold text-sm">
+                <div className="flex items-center gap-6">
+                    <Link
+                        href="/"
+                        className="flex flex-row justify-center items-center gap-2 font-bold text-sm"
+                    >
                         <CodeIcon className="size-4" />
                     </Link>
+
+                    {!loading && user && (
+                        <nav className="flex items-center gap-4">
+                            <Link className="text-sm" href="/submissions">Submissions</Link>
+
+                            {(user.role === "setter" || user.role === "admin") && (
+                                <Link className="text-sm" href="/set">Set Problem</Link>
+                            )}
+
+                            {user.role === "admin" && (
+                                <Link className="text-sm" href="/admin/setters">Permissions</Link>
+                            )}
+                        </nav>
+                    )}
                 </div>
 
                 <div className="flex flex-row items-center gap-2">

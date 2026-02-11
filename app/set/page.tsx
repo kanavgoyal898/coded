@@ -90,7 +90,7 @@ export default function AddProblemPage() {
     }
 
     try {
-      const res = await fetch("/api/problems/set", {
+      const res = await fetch("/api/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
