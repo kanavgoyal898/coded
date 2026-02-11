@@ -22,6 +22,8 @@ const statusLabels: Record<string, string> = {
     rejected: "Rejected",
 };
 
+const ROWS_PER_PAGE = 16;
+
 export default function SubmissionsPage() {
     const router = useRouter();
     const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -34,7 +36,6 @@ export default function SubmissionsPage() {
         direction: "desc",
     });
     const [currentPage, setCurrentPage] = useState(1);
-    const rowsPerPage = 16;
 
     useEffect(() => {
         async function fetchSubmissions() {
@@ -44,7 +45,15 @@ export default function SubmissionsPage() {
                     router.push("/login");
                     return;
                 }
-                if (!res.ok) throw new Error("Failed to fetch submissions");
+                if (!res.ok) {
+                    let data: { error?: string } = {};
+                    try {
+                        data = await res.json();
+                    } catch {
+                        throw new Error("Failed to load submissions");
+                    }
+                    throw new Error(data.error || "Failed to load submissions");
+                }
                 const data = await res.json();
                 setSubmissions(data.submissions);
             } catch (err) {
@@ -57,6 +66,7 @@ export default function SubmissionsPage() {
     }, [router]);
 
     const requestSort = (key: keyof Submission) => {
+        setCurrentPage(1);
         setSortConfig((prev) => ({
             key,
             direction:
@@ -88,11 +98,11 @@ export default function SubmissionsPage() {
         });
     }, [submissions, sortConfig]);
 
-    const totalPages = Math.ceil(sortedSubmissions.length / rowsPerPage);
+    const totalPages = Math.ceil(sortedSubmissions.length / ROWS_PER_PAGE);
 
     const paginatedSubmissions = useMemo(() => {
-        const start = (currentPage - 1) * rowsPerPage;
-        return sortedSubmissions.slice(start, start + rowsPerPage);
+        const start = (currentPage - 1) * ROWS_PER_PAGE;
+        return sortedSubmissions.slice(start, start + ROWS_PER_PAGE);
     }, [sortedSubmissions, currentPage]);
 
     const arrow = (key: keyof Submission) =>
@@ -100,8 +110,10 @@ export default function SubmissionsPage() {
 
     if (error) {
         return (
-            <div className="container mx-auto py-8">
-                <div className="text-center text-destructive">{error}</div>
+            <div className="max-w-4xl mx-auto px-2 py-8">
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
+                    {error}
+                </div>
             </div>
         );
     }
@@ -111,7 +123,7 @@ export default function SubmissionsPage() {
             <h1 className="text-2xl font-semibold">Submissions</h1>
 
             {submissions.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">
+                <div className="py-8 text-muted-foreground">
                     No submissions yet.
                 </div>
             ) : (
@@ -163,14 +175,21 @@ export default function SubmissionsPage() {
                                         }
                                     >
                                         <TableCell>
-                                            {(currentPage - 1) * rowsPerPage + i + 1}
+                                            {(currentPage - 1) * ROWS_PER_PAGE + i + 1}
                                         </TableCell>
                                         <TableCell>{submission.problem_title}</TableCell>
                                         <TableCell>
                                             {getLanguageLabel(submission.language)}
                                         </TableCell>
                                         <TableCell>
-                                            <span>
+                                            <span
+                                                className={`text-xs font-medium px-2 py-1 rounded-full ${submission.status === "accepted"
+                                                        ? "bg-green-100 text-green-700"
+                                                        : submission.status === "rejected"
+                                                            ? "bg-red-100 text-red-700"
+                                                            : "bg-gray-100 text-gray-700"
+                                                    }`}
+                                            >
                                                 {statusLabels[submission.status] || submission.status}
                                             </span>
                                         </TableCell>
@@ -185,8 +204,8 @@ export default function SubmissionsPage() {
                             ) : (
                                 <TableRow>
                                     <TableCell
-                                        colSpan={8}
-                                        className="text-center py-4 text-muted-foreground"
+                                        colSpan={6}
+                                        className="py-4 text-muted-foreground"
                                     >
                                         No submissions yet.
                                     </TableCell>
