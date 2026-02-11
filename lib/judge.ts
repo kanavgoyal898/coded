@@ -378,7 +378,7 @@ export async function judge(
                                 } else {
                                     allPassed = false;
                                     runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                        } failed\nExpected: "${expected}"\nGot: "${actual}"\n\n`;
+                                        } failed\n`;
                                 }
                             } catch (error) {
                                 allPassed = false;

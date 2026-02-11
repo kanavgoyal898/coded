@@ -1,56 +1,281 @@
 import { judge } from "@/lib/judge";
-import { detectLanguage } from "@/lib/constants/languages";
+import { detectLanguage, isValidLanguage } from "@/lib/constants/languages";
 import { getSessionUserFromRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
+const MAX_FILE_SIZE = 64 * 1024;
+const MAX_PROBLEM_ID = 2 * 1024 * 1024 * 1024;
+const MIN_PROBLEM_ID = 1;
+const ALLOWED_EXTENSIONS = [".c", ".cpp", ".cc", ".cxx", ".py"];
+
 export async function POST(req: NextRequest) {
+    if (!req) {
+        return NextResponse.json(
+            { error: "Invalid request." },
+            { status: 400 }
+        );
+    }
+
     const session = getSessionUserFromRequest(req);
+
     if (!session) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return NextResponse.json(
+            { error: "Authentication required. Please log in to continue." },
+            { status: 401 }
+        );
+    }
+
+    if (!session.userId || typeof session.userId !== "number" || session.userId <= 0) {
+        return NextResponse.json(
+            { error: "Invalid session data. Please log in again." },
+            { status: 401 }
+        );
+    }
+
+    let formData: FormData;
+
+    try {
+        formData = await req.formData();
+    } catch {
+        return NextResponse.json(
+            { error: "Invalid request body. Expected multipart form data." },
+            { status: 400 }
+        );
+    }
+
+    if (!formData) {
+        return NextResponse.json(
+            { error: "Empty request body." },
+            { status: 400 }
+        );
+    }
+
+    const problemIdValue = formData.get("problem_id");
+
+    if (!problemIdValue) {
+        return NextResponse.json(
+            { error: "Missing required field: problem_id." },
+            { status: 422 }
+        );
+    }
+
+    if (typeof problemIdValue !== "string") {
+        return NextResponse.json(
+            { error: "Problem ID must be a string value." },
+            { status: 422 }
+        );
+    }
+
+    const problemIdStr = problemIdValue.trim();
+
+    if (problemIdStr.length === 0) {
+        return NextResponse.json(
+            { error: "Problem ID cannot be empty." },
+            { status: 422 }
+        );
+    }
+
+    const problemId = parseInt(problemIdStr, 10);
+
+    if (isNaN(problemId)) {
+        return NextResponse.json(
+            { error: "Problem ID must be a valid integer." },
+            { status: 422 }
+        );
+    }
+
+    if (!Number.isInteger(problemId)) {
+        return NextResponse.json(
+            { error: "Problem ID must be an integer." },
+            { status: 422 }
+        );
+    }
+
+    if (problemId < MIN_PROBLEM_ID || problemId > MAX_PROBLEM_ID) {
+        return NextResponse.json(
+            { error: `Problem ID must be between ${MIN_PROBLEM_ID} and ${MAX_PROBLEM_ID}.` },
+            { status: 422 }
+        );
+    }
+
+    const fileValue = formData.get("file");
+
+    if (!fileValue) {
+        return NextResponse.json(
+            { error: "Missing required field: file." },
+            { status: 422 }
+        );
+    }
+
+    if (!(fileValue instanceof File)) {
+        return NextResponse.json(
+            { error: "File must be a valid file upload." },
+            { status: 422 }
+        );
+    }
+
+    const file = fileValue;
+
+    if (!file.name || file.name.trim().length === 0) {
+        return NextResponse.json(
+            { error: "File must have a valid name." },
+            { status: 422 }
+        );
+    }
+
+    if (file.size === 0) {
+        return NextResponse.json(
+            { error: "File cannot be empty." },
+            { status: 422 }
+        );
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+            { error: `File size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024}KB.` },
+            { status: 422 }
+        );
+    }
+
+    const fileName = file.name.toLowerCase();
+    const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext));
+
+    if (!hasValidExtension) {
+        return NextResponse.json(
+            { error: `Invalid file type. Allowed extensions: ${ALLOWED_EXTENSIONS.join(", ")}.` },
+            { status: 422 }
+        );
+    }
+
+    let code: string;
+
+    try {
+        code = await file.text();
+    } catch {
+        return NextResponse.json(
+            { error: "Failed to read file contents. Please ensure the file is a valid text file." },
+            { status: 400 }
+        );
+    }
+
+    if (!code || typeof code !== "string") {
+        return NextResponse.json(
+            { error: "File must contain valid text content." },
+            { status: 422 }
+        );
+    }
+
+    if (code.trim().length === 0) {
+        return NextResponse.json(
+            { error: "File cannot be empty or contain only whitespace." },
+            { status: 422 }
+        );
+    }
+
+    if (Buffer.byteLength(code, "utf8") > MAX_FILE_SIZE) {
+        return NextResponse.json(
+            { error: `Code size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024}KB.` },
+            { status: 422 }
+        );
+    }
+
+    let lang: string;
+
+    try {
+        lang = detectLanguage(file);
+    } catch {
+        return NextResponse.json(
+            { error: "Failed to detect programming language from file extension." },
+            { status: 400 }
+        );
+    }
+
+    if (!lang || typeof lang !== "string" || lang.trim().length === 0) {
+        return NextResponse.json(
+            { error: "Unable to determine programming language from file." },
+            { status: 422 }
+        );
+    }
+
+    if (!isValidLanguage(lang)) {
+        return NextResponse.json(
+            { error: `Unsupported programming language: ${lang}. Allowed languages: C, C++, Python.` },
+            { status: 422 }
+        );
     }
 
     try {
-        const data = await req.formData();
-        const file = data.get("file") as File | null;
-        const problemIdStr = data.get("problem_id") as string | null;
-
-        if (!problemIdStr) {
-            return NextResponse.json(
-                { error: "problem_id is required" },
-                { status: 400 }
-            );
-        }
-
-        const problemId = parseInt(problemIdStr);
-        if (isNaN(problemId)) {
-            return NextResponse.json(
-                { error: "Invalid problem_id" },
-                { status: 400 }
-            );
-        }
-
-        let code = "";
-        if (file) {
-            code = await file.text();
-        }
-
-        if (!code.trim()) {
-            return NextResponse.json(
-                { error: "No code provided" },
-                { status: 400 }
-            );
-        }
-
-        const lang = detectLanguage(file ?? undefined);
         const result = await judge(lang, code, problemId, session.userId);
+
+        if (!result || typeof result !== "object") {
+            return NextResponse.json(
+                { error: "Invalid response from judging system." },
+                { status: 500 }
+            );
+        }
+
+        if (typeof result.score !== "number" || typeof result.total !== "number") {
+            return NextResponse.json(
+                { error: "Judging system returned invalid score data." },
+                { status: 500 }
+            );
+        }
+
+        if (!result.status || typeof result.status !== "string") {
+            return NextResponse.json(
+                { error: "Judging system returned invalid status." },
+                { status: 500 }
+            );
+        }
 
         return NextResponse.json(result);
     } catch (error) {
-        console.error("Judge error:", error);
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+
+        if (errorMessage.includes("Database")) {
+            return NextResponse.json(
+                {
+                    error: "Database error occurred during judging.",
+                    score: 0,
+                    total: 0,
+                    status: "rejected",
+                },
+                { status: 503 }
+            );
+        }
+
+        if (errorMessage.includes("timeout") || errorMessage.includes("timed out")) {
+            return NextResponse.json(
+                {
+                    error: "Judging process timed out. Your code may be taking too long to execute.",
+                    score: 0,
+                    total: 0,
+                    status: "rejected",
+                },
+                { status: 500 }
+            );
+        }
+
+        if (errorMessage.includes("Docker") || errorMessage.includes("Container")) {
+            return NextResponse.json(
+                {
+                    error: "Execution environment error. Please try again.",
+                    score: 0,
+                    total: 0,
+                    status: "rejected",
+                },
+                { status: 500 }
+            );
+        }
+
         return NextResponse.json(
             {
-                error: "Judging failed",
-                details: error instanceof Error ? error.message : "Unknown error",
+                error: "Judging failed. Please try again.",
+                score: 0,
+                total: 0,
+                status: "rejected",
             },
             { status: 500 }
         );
