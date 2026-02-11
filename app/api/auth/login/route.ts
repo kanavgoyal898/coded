@@ -13,6 +13,8 @@ interface UserRow {
     password: string;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export async function POST(req: NextRequest) {
     try {
         const { email, password } = await req.json();
@@ -24,11 +26,28 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        if (typeof email !== "string" || typeof password !== "string") {
+            return NextResponse.json(
+                { error: "Email and password must be strings" },
+                { status: 400 }
+            );
+        }
+
+        const trimmedEmail = email.trim().toLowerCase();
+
+        if (!EMAIL_REGEX.test(trimmedEmail)) {
+            return NextResponse.json(
+                { error: "Invalid email address" },
+                { status: 400 }
+            );
+        }
+
         const dbPath = path.join(process.cwd(), "database.db");
 
         return new Promise((resolve) => {
             const db = new sqlite3.Database(dbPath, (err) => {
                 if (err) {
+                    console.error("Login DB connection error:", err);
                     resolve(
                         NextResponse.json(
                             { error: "Database connection failed" },
@@ -40,18 +59,22 @@ export async function POST(req: NextRequest) {
 
                 db.get(
                     "SELECT id, name, email, role, password FROM user WHERE email = ?",
-                    [email.toLowerCase()],
+                    [trimmedEmail],
                     (err, user: UserRow) => {
                         db.close();
 
                         if (err) {
+                            console.error("Login DB query error:", err);
                             resolve(
-                                NextResponse.json({ error: "Database error" }, { status: 500 })
+                                NextResponse.json(
+                                    { error: "A database error occurred" },
+                                    { status: 500 }
+                                )
                             );
                             return;
                         }
 
-                        if (!user || !user.password) {
+                        if (!user) {
                             resolve(
                                 NextResponse.json(
                                     { error: "Invalid email or password" },
@@ -95,8 +118,10 @@ export async function POST(req: NextRequest) {
                 );
             });
         });
-    } catch (error) {
-        console.error("Login error:", error);
-        return NextResponse.json({ error: "Login failed" }, { status: 500 });
+    } catch {
+        return NextResponse.json(
+            { error: "Request body is missing or malformed JSON" },
+            { status: 400 }
+        );
     }
 }

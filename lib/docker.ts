@@ -4,11 +4,12 @@ let cleanupRegistered = false;
 
 const MAX_MEMORY_MB = 1024;
 const MIN_MEMORY_MB = 64;
-const MAX_CPU_CORES = 2;
+const MAX_CPU_CORES = 1;
 const MIN_CPU_CORES = 0.1;
-const MAX_TIMEOUT_MS = 30000;
-const MIN_TIMEOUT_MS = 1000;
-const MAX_INPUT_SIZE = 10 * 1024 * 1024;
+const MAX_TIMEOUT_MS = 32768;
+const MIN_TIMEOUT_MS = 1024;
+const MAX_INPUT_SIZE = 1024 * 1024;
+const MAX_OUTPUT_SIZE = 1024 * 1024;
 
 function dockerCleanup() {
     const cmds = [
@@ -126,7 +127,6 @@ export async function runContainer(
         let stdout = "";
         let stderr = "";
         let outputSize = 0;
-        const MAX_OUTPUT_SIZE = 1024 * 1024;
 
         docker.stdout.on("data", (data) => {
             outputSize += data.length;

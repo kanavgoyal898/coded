@@ -12,6 +12,12 @@ interface UserRow {
     role: string;
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_NAME_LENGTH = 128;
+const MAX_EMAIL_LENGTH = 256;
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 128;
+
 export async function POST(req: NextRequest) {
     try {
         const { name, email, password } = await req.json();
@@ -19,22 +25,63 @@ export async function POST(req: NextRequest) {
         if (!name || !email || !password) {
             return NextResponse.json(
                 { error: "Name, email, and password are required" },
-                { status: 400 },
+                { status: 400 }
             );
         }
 
-        if (password.length < 6) {
+        if (
+            typeof name !== "string" ||
+            typeof email !== "string" ||
+            typeof password !== "string"
+        ) {
             return NextResponse.json(
-                { error: "Password must be at least 6 characters" },
-                { status: 400 },
+                { error: "Name, email, and password must be strings" },
+                { status: 400 }
             );
         }
 
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
+        const trimmedName = name.trim();
+        const trimmedEmail = email.trim().toLowerCase();
+
+        if (!trimmedName) {
+            return NextResponse.json(
+                { error: "Name cannot be blank" },
+                { status: 400 }
+            );
+        }
+
+        if (trimmedName.length > MAX_NAME_LENGTH) {
+            return NextResponse.json(
+                { error: `Name must not exceed ${MAX_NAME_LENGTH} characters` },
+                { status: 400 }
+            );
+        }
+
+        if (trimmedEmail.length > MAX_EMAIL_LENGTH) {
+            return NextResponse.json(
+                { error: `Email must not exceed ${MAX_EMAIL_LENGTH} characters` },
+                { status: 400 }
+            );
+        }
+
+        if (!EMAIL_REGEX.test(trimmedEmail)) {
             return NextResponse.json(
                 { error: "Invalid email address" },
-                { status: 400 },
+                { status: 400 }
+            );
+        }
+
+        if (password.length < MIN_PASSWORD_LENGTH) {
+            return NextResponse.json(
+                { error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` },
+                { status: 400 }
+            );
+        }
+
+        if (password.length > MAX_PASSWORD_LENGTH) {
+            return NextResponse.json(
+                { error: `Password must not exceed ${MAX_PASSWORD_LENGTH} characters` },
+                { status: 400 }
             );
         }
 
@@ -44,23 +91,28 @@ export async function POST(req: NextRequest) {
         return new Promise((resolve) => {
             const db = new sqlite3.Database(dbPath, (err) => {
                 if (err) {
+                    console.error("Signup DB connection error:", err);
                     resolve(
                         NextResponse.json(
                             { error: "Database connection failed" },
-                            { status: 500 },
-                        ),
+                            { status: 500 }
+                        )
                     );
                     return;
                 }
 
                 db.get(
                     "SELECT id FROM user WHERE email = ?",
-                    [email.toLowerCase()],
+                    [trimmedEmail],
                     (err, row) => {
                         if (err) {
                             db.close();
+                            console.error("Signup DB lookup error:", err);
                             resolve(
-                                NextResponse.json({ error: "Database error" }, { status: 500 }),
+                                NextResponse.json(
+                                    { error: "A database error occurred" },
+                                    { status: 500 }
+                                )
                             );
                             return;
                         }
@@ -70,8 +122,8 @@ export async function POST(req: NextRequest) {
                             resolve(
                                 NextResponse.json(
                                     { error: "An account with this email already exists" },
-                                    { status: 409 },
-                                ),
+                                    { status: 409 }
+                                )
                             );
                             return;
                         }
@@ -79,16 +131,18 @@ export async function POST(req: NextRequest) {
                         db.run(
                             `
                                 INSERT INTO user (name, email, password, role)
-                                VALUES (?, ?, ?, 'solver')`,
-                            [name.trim(), email.toLowerCase(), passwordHash],
+                                VALUES (?, ?, ?, 'solver')
+                            `,
+                            [trimmedName, trimmedEmail, passwordHash],
                             function (err) {
                                 if (err) {
                                     db.close();
+                                    console.error("Signup DB insert error:", err);
                                     resolve(
                                         NextResponse.json(
                                             { error: "Failed to create account" },
-                                            { status: 500 },
-                                        ),
+                                            { status: 500 }
+                                        )
                                     );
                                     return;
                                 }
@@ -102,11 +156,12 @@ export async function POST(req: NextRequest) {
                                         db.close();
 
                                         if (err || !user) {
+                                            console.error("Signup post-insert fetch error:", err);
                                             resolve(
                                                 NextResponse.json(
-                                                    { error: "Account created but login failed" },
-                                                    { status: 500 },
-                                                ),
+                                                    { error: "Account created but session could not be established" },
+                                                    { status: 500 }
+                                                )
                                             );
                                             return;
                                         }
@@ -130,19 +185,18 @@ export async function POST(req: NextRequest) {
                                         });
 
                                         resolve(response);
-                                    },
+                                    }
                                 );
-                            },
+                            }
                         );
-                    },
+                    }
                 );
             });
         });
-    } catch (error) {
-        console.error("Signup error:", error);
+    } catch {
         return NextResponse.json(
-            { error: "Failed to create account" },
-            { status: 500 },
+            { error: "Request body is missing or malformed JSON" },
+            { status: 400 }
         );
     }
 }

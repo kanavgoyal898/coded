@@ -4,6 +4,12 @@ import { randomUUID } from "crypto";
 import { runContainer } from "./docker";
 import { LANGUAGES, LanguageKey } from "./constants/languages";
 
+const MAX_CODE_SIZE = 64 * 1024;
+const MIN_USER_ID = 1;
+const MIN_PROBLEM_ID = 1;
+const MAX_TESTCASE_INPUT_SIZE = 1024 * 1024;
+const MAX_TESTCASE_OUTPUT_SIZE = 1024 * 1024;
+
 interface JudgeResult {
     score: number;
     total: number;
@@ -26,12 +32,6 @@ interface CompileResult {
     error?: string;
     log?: string;
 }
-
-const MAX_CODE_SIZE = 64 * 1024;
-const MIN_USER_ID = 1;
-const MIN_PROBLEM_ID = 1;
-const MAX_TESTCASE_INPUT_SIZE = 1024 * 1024;
-const MAX_TESTCASE_OUTPUT_SIZE = 1024 * 1024;
 
 async function compileCode(lang: string, code: string): Promise<CompileResult> {
     if (!lang || typeof lang !== "string" || lang.trim().length === 0) {

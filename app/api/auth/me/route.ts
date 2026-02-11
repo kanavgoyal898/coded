@@ -16,7 +16,10 @@ export async function GET() {
     const session = await getSessionUser();
 
     if (!session) {
-        return NextResponse.json({ user: null }, { status: 401 });
+        return NextResponse.json(
+            { error: "Authentication required" },
+            { status: 401 }
+        );
     }
 
     const dbPath = path.join(process.cwd(), "database.db");
@@ -24,7 +27,13 @@ export async function GET() {
     return new Promise((resolve) => {
         const db = new sqlite3.Database(dbPath, (err) => {
             if (err) {
-                resolve(NextResponse.json({ user: null }, { status: 500 }));
+                console.error("Me DB connection error:", err);
+                resolve(
+                    NextResponse.json(
+                        { error: "Database connection failed" },
+                        { status: 500 }
+                    )
+                );
                 return;
             }
 
@@ -34,8 +43,24 @@ export async function GET() {
                 (err, user: UserRow) => {
                     db.close();
 
-                    if (err || !user) {
-                        resolve(NextResponse.json({ user: null }, { status: 401 }));
+                    if (err) {
+                        console.error("Me DB query error:", err);
+                        resolve(
+                            NextResponse.json(
+                                { error: "A database error occurred" },
+                                { status: 500 }
+                            )
+                        );
+                        return;
+                    }
+
+                    if (!user) {
+                        resolve(
+                            NextResponse.json(
+                                { error: "Account not found" },
+                                { status: 401 }
+                            )
+                        );
                         return;
                     }
 
