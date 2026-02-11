@@ -13,13 +13,10 @@ export function NavigationBar() {
     if (pathname === "/login" || pathname === "/signup") return null;
 
     return (
-        <header className="sticky top-0 z-100">
+        <header className="sticky top-0 z-50 bg-background border-b">
             <div className="max-w-4xl mx-auto px-2 h-12 flex flex-row items-center justify-between gap-2">
                 <div className="flex items-center gap-6">
-                    <Link
-                        href="/"
-                        className="flex flex-row justify-center items-center gap-2 font-bold text-sm"
-                    >
+                    <Link href="/" className="font-bold text-sm">
                         <CodeIcon className="size-4" />
                     </Link>
 

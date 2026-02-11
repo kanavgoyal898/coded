@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button"
+import { Button } from "@/components/ui/button";
 import { SideBar } from "@/app/components/SideBar";
+
+const MIN_PASSWORD_LENGTH = 8;
 
 function SignupForm() {
     const router = useRouter();
@@ -23,12 +25,12 @@ function SignupForm() {
         setError(null);
 
         if (password !== confirmPassword) {
-            setError("Passwords do not match");
+            setError("Passwords do not match.");
             return;
         }
 
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters");
+        if (password.length < MIN_PASSWORD_LENGTH) {
+            setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
             return;
         }
 
@@ -41,17 +43,24 @@ function SignupForm() {
                 body: JSON.stringify({ name, email, password }),
             });
 
-            const data = await res.json();
+            let data: { error?: string } = {};
+            try {
+                data = await res.json();
+            } catch {
+                throw new Error("Invalid response from server. Please try again.");
+            }
 
             if (!res.ok) {
-                setError(data.error || "Sign up failed");
+                setError(data.error || "Sign up failed. Please try again.");
                 return;
             }
 
             router.push("/submissions");
             router.refresh();
-        } catch {
-            setError("Something went wrong. Please try again.");
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Something went wrong. Please try again."
+            );
         } finally {
             setLoading(false);
         }
@@ -77,7 +86,10 @@ function SignupForm() {
                                 type="text"
                                 autoComplete="name"
                                 value={name}
-                                onChange={(e) => setName(e.target.value)}
+                                onChange={(e) => {
+                                    setName(e.target.value);
+                                    setError(null);
+                                }}
                                 required
                                 disabled={loading}
                             />
@@ -90,7 +102,10 @@ function SignupForm() {
                                 type="email"
                                 autoComplete="email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    setEmail(e.target.value);
+                                    setError(null);
+                                }}
                                 required
                                 disabled={loading}
                             />
@@ -103,7 +118,10 @@ function SignupForm() {
                                 type="password"
                                 autoComplete="new-password"
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(e) => {
+                                    setPassword(e.target.value);
+                                    setError(null);
+                                }}
                                 required
                                 disabled={loading}
                             />
@@ -116,16 +134,19 @@ function SignupForm() {
                                 type="password"
                                 autoComplete="new-password"
                                 value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                onChange={(e) => {
+                                    setConfirmPassword(e.target.value);
+                                    setError(null);
+                                }}
                                 required
                                 disabled={loading}
                             />
                         </div>
 
                         {error && (
-                            <p className="text-sm text-destructive bg-destructive/10 rounded-md px-4 py-2">
+                            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
                                 {error}
-                            </p>
+                            </div>
                         )}
 
                         <Button

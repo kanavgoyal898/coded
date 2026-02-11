@@ -30,17 +30,24 @@ function LoginForm() {
                 body: JSON.stringify({ email, password }),
             });
 
-            const data = await res.json();
+            let data: { error?: string } = {};
+            try {
+                data = await res.json();
+            } catch {
+                throw new Error("Invalid response from server. Please try again.");
+            }
 
             if (!res.ok) {
-                setError(data.error || "Login failed");
+                setError(data.error || "Login failed. Please try again.");
                 return;
             }
 
             router.push(from);
             router.refresh();
-        } catch {
-            setError("Something went wrong. Please try again.");
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Something went wrong. Please try again."
+            );
         } finally {
             setLoading(false);
         }
@@ -66,7 +73,10 @@ function LoginForm() {
                                 type="email"
                                 autoComplete="email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(e) => {
+                                    setEmail(e.target.value);
+                                    setError(null);
+                                }}
                                 required
                                 disabled={loading}
                             />
@@ -79,16 +89,19 @@ function LoginForm() {
                                 type="password"
                                 autoComplete="current-password"
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(e) => {
+                                    setPassword(e.target.value);
+                                    setError(null);
+                                }}
                                 required
                                 disabled={loading}
                             />
                         </div>
 
                         {error && (
-                            <p className="text-sm text-destructive bg-destructive/10 rounded-md px-4 py-2">
+                            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
                                 {error}
-                            </p>
+                            </div>
                         )}
 
                         <Button

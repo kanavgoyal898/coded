@@ -5,7 +5,6 @@ export function SideBar() {
         <aside className="hidden lg:flex lg:w-1/2 bg-foreground text-background flex-col justify-between px-12 py-8">
             <div className="flex items-center gap-2">
                 <CodeIcon className="size-8" />
-                <span className="font-bold text-lg"></span>
             </div>
             <div className="space-y-4">
                 <p className="text-4xl font-light leading-snug tracking-tight">
@@ -17,8 +16,8 @@ export function SideBar() {
                     Set problems. Submit solutions.
                 </p>
             </div>
-            <p className="text-xs opacity-30">
-                All Rights Reserved © {new Date().getFullYear()} 
+            <p className="text-xs opacity-20">
+                All Rights Reserved &copy; {new Date().getFullYear()}
             </p>
         </aside>
     );
