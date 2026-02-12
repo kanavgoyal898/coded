@@ -22,7 +22,7 @@ const statusLabels: Record<string, string> = {
     rejected: "Rejected",
 };
 
-const ROWS_PER_PAGE = 16;
+const ROWS_PER_PAGE = 8;
 
 export default function SubmissionsPage() {
     const router = useRouter();
@@ -160,7 +160,7 @@ export default function SubmissionsPage() {
                                     className="cursor-pointer"
                                     onClick={() => requestSort("created_at")}
                                 >
-                                    Submitted{arrow("created_at")}
+                                    Submitted (GMT) {arrow("created_at")}
                                 </TableHead>
                             </TableRow>
                         </TableHeader>

@@ -13,6 +13,7 @@ interface ProblemRow {
     memory_limit_kb: number;
     created_at: string;
     setter_name: string | null;
+    deadline_at: string | null;
 }
 
 interface SampleRow {
@@ -136,6 +137,7 @@ export async function GET(
                     p.time_limit_ms,
                     p.memory_limit_kb,
                     p.created_at,
+                    p.deadline_at,
                     u.name as setter_name
                 FROM problem p
                 LEFT JOIN user u ON p.setter_id = u.id
@@ -174,6 +176,22 @@ export async function GET(
                             )
                         );
                         return;
+                    }
+
+                    if (problem.deadline_at) {
+                        const deadline = new Date(problem.deadline_at);
+                        const now = new Date();
+
+                        if (now > deadline) {
+                            closeDb(db!).catch(() => { });
+                            resolve(
+                                NextResponse.json(
+                                    { error: "This problem's deadline has passed and is no longer accepting submissions." },
+                                    { status: 403 }
+                                )
+                            );
+                            return;
+                        }
                     }
 
                     if (typeof problem.time_limit_ms !== "number" || problem.time_limit_ms <= 0) {

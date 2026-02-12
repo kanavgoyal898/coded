@@ -13,6 +13,7 @@ type Problem = {
   setter_name: string;
   time_limit_ms: number;
   memory_limit_kb: number;
+  deadline_at: string | null;
 };
 
 type SampleTestcase = {
@@ -272,6 +273,9 @@ export default function SubmitProblemPage() {
             <>Set by <b>{problem.setter_name}</b> • </>
           ) : null}
           {problem.time_limit_ms} ms • {Math.floor(problem.memory_limit_kb / 1024)} MB
+          {problem.deadline_at ? (
+            <> • Deadline: {new Date(problem.deadline_at).toLocaleString()} GMT</>
+          ) : null}
         </p>
       </div>
 
@@ -347,53 +351,53 @@ export default function SubmitProblemPage() {
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Submission Result</DialogTitle>
-            </DialogHeader>
-            
-            <div className="text-sm space-y-2 mt-2">
-              {submissionError ? (
-                <div className="text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
-                  {submissionError}
-                </div>
-              ) : score ? (
-                <div>
-                  <div className="text-sm">
-                    Score:{" "}
-                    <span className="font-semibold">
-                      {score.score}/{score.total}
-                    </span>
+          </DialogHeader>
 
-                    {score.score === score.total ? (
-                      <span className="ml-2 text-green-600">All tests passed!</span>
-                    ) : score.score > 0 ? (
-                      <span className="ml-2 text-amber-600">Partial credit</span>
-                    ) : (
-                      <span className="ml-2 text-red-600">No tests passed</span>
-                    )}
+          <div className="text-sm space-y-2 mt-2">
+            {submissionError ? (
+              <div className="text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
+                {submissionError}
+              </div>
+            ) : score ? (
+              <div>
+                <div className="text-sm">
+                  Score:{" "}
+                  <span className="font-semibold">
+                    {score.score}/{score.total}
+                  </span>
+
+                  {score.score === score.total ? (
+                    <span className="ml-2 text-green-600">All tests passed!</span>
+                  ) : score.score > 0 ? (
+                    <span className="ml-2 text-amber-600">Partial credit</span>
+                  ) : (
+                    <span className="ml-2 text-red-600">No tests passed</span>
+                  )}
+                </div>
+
+                {compileLogs && (
+                  <div className="mt-4">
+                    <div className="text-sm font-medium mb-1">Compilation Output:</div>
+                    <pre className="bg-muted px-4 py-2 rounded text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {compileLogs}
+                    </pre>
                   </div>
+                )}
 
-                  {compileLogs && (
-                    <div className="mt-4">
-                      <div className="text-sm font-medium mb-1">Compilation Output:</div>
-                      <pre className="bg-muted px-4 py-2 rounded text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
-                        {compileLogs}
-                      </pre>
-                    </div>
-                  )}
-
-                  {runtimeLogs && (
-                    <div className="mt-4">
-                      <div className="text-sm font-medium mb-1">Test Results:</div>
-                      <pre className="bg-muted px-4 py-2 rounded text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
-                        {runtimeLogs}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-muted-foreground">
-                  No submission result available.
-                </div>
-              )}
+                {runtimeLogs && (
+                  <div className="mt-4">
+                    <div className="text-sm font-medium mb-1">Test Results:</div>
+                    <pre className="bg-muted px-4 py-2 rounded text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
+                      {runtimeLogs}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-muted-foreground">
+                No submission result available.
+              </div>
+            )}
           </div>
           <DialogClose asChild>
             <Button variant="outline">Close</Button>

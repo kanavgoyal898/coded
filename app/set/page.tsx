@@ -44,6 +44,7 @@ export default function AddProblemPage() {
   const [statement, setStatement] = useState("");
   const [timeLimit, setTimeLimit] = useState("1024");
   const [memoryLimit, setMemoryLimit] = useState("262144");
+  const [deadline, setDeadline] = useState("");
   const [testcases, setTestcases] = useState<Testcase[]>([
     { input: "", output: "", weight: 1, is_sample: true },
   ]);
@@ -78,6 +79,13 @@ export default function AddProblemPage() {
     const memoryLimitNum = parseInt(memoryLimit);
     if (isNaN(memoryLimitNum) || memoryLimitNum < MIN_MEMORY_LIMIT || memoryLimitNum > MAX_MEMORY_LIMIT) {
       return `Memory limit must be between ${MIN_MEMORY_LIMIT} and ${MAX_MEMORY_LIMIT} KB.`;
+    }
+
+    if (deadline && deadline.trim().length > 0) {
+      const deadlineDate = new Date(deadline);
+      if (isNaN(deadlineDate.getTime())) {
+        return "Invalid deadline format.";
+      }
     }
 
     if (testcases.length === 0) {
@@ -198,6 +206,7 @@ export default function AddProblemPage() {
           statement: statement.trim(),
           time_limit_ms: parseInt(timeLimit),
           memory_limit_kb: parseInt(memoryLimit),
+          deadline_at: deadline && deadline.trim().length > 0 ? deadline.trim() : null,
           testcases: testcases.map(tc => ({
             input: tc.input,
             output: tc.output,
@@ -244,7 +253,8 @@ export default function AddProblemPage() {
       setStatement("");
       setTimeLimit("1024");
       setMemoryLimit("262144");
-      setTestcases([{ input: "", output: "", weight: 1, is_sample: true }]);
+      setDeadline("");
+      setTestcases([{ input: "", output: "", weight: 0, is_sample: true }]);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unable to create problem. Please check your connection.";
       setResult({ error: errorMessage });
@@ -339,6 +349,20 @@ export default function AddProblemPage() {
             {formatNumbers(MIN_MEMORY_LIMIT)}-{formatNumbers(MAX_MEMORY_LIMIT)} KB
           </p>
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="deadline-input">Deadline (GMT)</Label>
+        <Input
+          id="deadline-input"
+          type="datetime-local"
+          value={deadline}
+          onChange={(e) => {
+            setDeadline(e.target.value);
+            setValidationError(null);
+          }}
+          disabled={submitting}
+        />
       </div>
 
       <div className="font-semibold space-y-4">
