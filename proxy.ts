@@ -5,7 +5,7 @@ const PUBLIC_PATHS = ["/login", "/signup"];
 const AUTH_PATHS = ["/problems", "/submissions"];
 const SETTER_PATHS = ["/set"];
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
     if (

@@ -14,7 +14,7 @@ const MAX_OUTPUT_SIZE = 1024 * 1024;
 function dockerCleanup() {
     const cmds = [
         ["container", "prune", "-f"],
-        ["image", "prune", "-af"],
+        ["image", "prune", "-f"],
         ["volume", "prune", "-f"],
         ["network", "prune", "-f"],
     ];
@@ -52,6 +52,7 @@ export async function runContainer(
     cpuCores = 0.5,
     timeout = 5000
 ): Promise<string> {
+
     if (!image || typeof image !== "string" || image.trim().length === 0) {
         throw new Error("Docker image name must be a non-empty string");
     }
@@ -114,12 +115,15 @@ export async function runContainer(
             ], {
                 timeout: timeout
             });
+
         } catch (error) {
+            console.error('[Docker] Spawn failed:', error);
             reject(new Error("Failed to spawn Docker container"));
             return;
         }
 
         if (!docker || !docker.stdin || !docker.stdout || !docker.stderr) {
+            console.error('[Docker] Failed to initialize streams');
             reject(new Error("Failed to initialize Docker container streams"));
             return;
         }
@@ -168,6 +172,7 @@ export async function runContainer(
             docker.stdin.write(input);
             docker.stdin.end();
         } catch (error) {
+            console.error('[Docker] Failed to write input:', error);
             if (!killed && docker) {
                 killed = true;
                 docker.kill("SIGKILL");

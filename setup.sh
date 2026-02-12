@@ -6,4 +6,5 @@ docker build -t judge-python docker/python
 
 sqlite3 database.db < schema.sql
 
-npm run dev
+npm run build
+npm run start

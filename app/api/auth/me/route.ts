@@ -12,27 +12,27 @@ interface UserRow {
     role: string;
 }
 
-export async function GET() {
+export async function GET(): Promise<Response> {
     const session = await getSessionUser();
 
     if (!session) {
         return NextResponse.json(
             { error: "Authentication required" },
-            { status: 401 }
+            { status: 401 },
         );
     }
 
     const dbPath = path.join(process.cwd(), "database.db");
 
-    return new Promise((resolve) => {
+    return new Promise<Response>((resolve) => {
         const db = new sqlite3.Database(dbPath, (err) => {
             if (err) {
                 console.error("Me DB connection error:", err);
                 resolve(
                     NextResponse.json(
                         { error: "Database connection failed" },
-                        { status: 500 }
-                    )
+                        { status: 500 },
+                    ),
                 );
                 return;
             }
@@ -48,8 +48,8 @@ export async function GET() {
                         resolve(
                             NextResponse.json(
                                 { error: "A database error occurred" },
-                                { status: 500 }
-                            )
+                                { status: 500 },
+                            ),
                         );
                         return;
                     }
@@ -58,14 +58,14 @@ export async function GET() {
                         resolve(
                             NextResponse.json(
                                 { error: "Account not found" },
-                                { status: 401 }
-                            )
+                                { status: 401 },
+                            ),
                         );
                         return;
                     }
 
                     resolve(NextResponse.json({ user }));
-                }
+                },
             );
         });
     });
