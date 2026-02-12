@@ -179,7 +179,7 @@ export async function GET(
                     }
 
                     if (problem.deadline_at) {
-                        const deadline = new Date(problem.deadline_at);
+                        const deadline = new Date(problem.deadline_at.replace(" ", "T") + "Z");
                         const now = new Date();
 
                         if (now > deadline) {

@@ -2,6 +2,8 @@ import { judge } from "@/lib/judge";
 import { detectLanguage, isValidLanguage } from "@/lib/constants/languages";
 import { getSessionUserFromRequest } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
+import sqlite3 from "sqlite3";
+import path from "path";
 
 export const runtime = "nodejs";
 
@@ -9,6 +11,55 @@ const MAX_FILE_SIZE = 64 * 1024;
 const MAX_PROBLEM_ID = 2 * 1024 * 1024 * 1024;
 const MIN_PROBLEM_ID = 1;
 const ALLOWED_EXTENSIONS = [".c", ".cpp", ".cc", ".cxx", ".py"];
+
+interface ProblemDeadlineRow {
+    deadline_at: string | null;
+}
+
+function checkProblemDeadline(problemId: number): Promise<{ valid: boolean; error?: string }> {
+    return new Promise((resolve) => {
+        const dbPath = path.join(process.cwd(), "database.db");
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+            if (err) {
+                resolve({ valid: false, error: "Database connection failed." });
+                return;
+            }
+
+            db.get(
+                `SELECT deadline_at FROM problem WHERE id = ?`,
+                [problemId],
+                (err, row: ProblemDeadlineRow) => {
+                    db.close();
+
+                    if (err) {
+                        resolve({ valid: false, error: "Failed to retrieve problem information." });
+                        return;
+                    }
+
+                    if (!row) {
+                        resolve({ valid: false, error: "Problem not found." });
+                        return;
+                    }
+
+                    if (row.deadline_at) {
+                        const deadline = new Date(row.deadline_at.replace(" ", "T") + "Z");
+                        const now = new Date();
+
+                        if (now > deadline) {
+                            resolve({ 
+                                valid: false, 
+                                error: "This problem's deadline has passed and is no longer accepting submissions." 
+                            });
+                            return;
+                        }
+                    }
+
+                    resolve({ valid: true });
+                }
+            );
+        });
+    });
+}
 
 export async function POST(req: NextRequest) {
     if (!req) {
@@ -97,6 +148,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
             { error: `Problem ID must be between ${MIN_PROBLEM_ID} and ${MAX_PROBLEM_ID}.` },
             { status: 422 }
+        );
+    }
+
+    const deadlineCheck = await checkProblemDeadline(problemId);
+    if (!deadlineCheck.valid) {
+        return NextResponse.json(
+            { error: deadlineCheck.error },
+            { status: 403 }
         );
     }
 

@@ -346,19 +346,26 @@ export async function judge(
                         }
 
                         compileLogs = compileResult.log || "";
-
+                        
+                        let testcaseIndex = 0;
                         for (const testcase of testcases) {
                             if (!testcase.input_data && testcase.input_data !== "") {
                                 allPassed = false;
                                 runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                    } has invalid input data\n\n`;
+                                    } has invalid input data\n`;
+                                if (testcase.is_sample) {
+                                    break;
+                                }
                                 continue;
                             }
 
                             if (!testcase.output_data && testcase.output_data !== "") {
                                 allPassed = false;
                                 runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                    } has invalid output data\n\n`;
+                                    } has invalid output data\n`;
+                                if (testcase.is_sample) {
+                                    break;
+                                }
                                 continue;
                             }
 
@@ -377,19 +384,26 @@ export async function judge(
                                     }
                                 } else {
                                     allPassed = false;
-                                    runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
+                                    runtimeLogs += `Testcase ${testcaseIndex + 1}${testcase.is_sample ? " (sample)" : ""
                                         } failed\n`;
+                                    if (testcase.is_sample) {
+                                        break;
+                                    }
                                 }
                             } catch (error) {
                                 allPassed = false;
                                 const errorMsg = error instanceof Error ? error.message : "Unknown error";
 
-                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
+                                runtimeLogs += `Testcase ${testcaseIndex + 1}${testcase.is_sample ? " (sample)" : ""
                                     } - ${errorMsg.includes("timeout") || errorMsg.includes("timed out")
                                         ? "Time Limit Exceeded"
                                         : `Runtime Error: ${errorMsg}`
-                                    }\n\n`;
+                                    }\n`;
+                                if (testcase.is_sample) {
+                                    break;
+                                }
                             }
+                            testcaseIndex++;
                         }
 
                         const executionTime = Date.now() - startTime;
@@ -447,6 +461,7 @@ export async function judge(
                 try {
                     db.close();
                 } catch {
+                    
                 }
             }
             resolve({
