@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, ColumnDef } from "@/app/components/DataTable";
 import { Plus, Trash } from "lucide-react";
-
 
 type SetterEntry = {
     email: string;
@@ -86,7 +85,8 @@ export default function AdminSettersPage() {
             }
 
             if (!res.ok) {
-                const errorMessage = data.error || "Failed to load setters. Please try again.";
+                const errorMessage =
+                    data.error || "Failed to load setters. Please try again.";
                 throw new Error(errorMessage);
             }
 
@@ -96,7 +96,10 @@ export default function AdminSettersPage() {
 
             setSetters(data.setters);
         } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : "Unable to load setters. Please check your connection.";
+            const errorMessage =
+                e instanceof Error
+                    ? e.message
+                    : "Unable to load setters. Please check your connection.";
             setError(errorMessage);
         } finally {
             setLoading(false);
@@ -110,8 +113,8 @@ export default function AdminSettersPage() {
     const parseEmailInput = (input: string): string[] => {
         const emails = input
             .split(/[,;\|\n\t]|[\s]{2,}/)
-            .map(email => email.trim())
-            .filter(email => email.length > 0);
+            .map((email) => email.trim())
+            .filter((email) => email.length > 0);
 
         return [...new Set(emails)];
     };
@@ -236,9 +239,9 @@ export default function AdminSettersPage() {
                 }
             }
 
-            const successCount = results.filter(r => r.success).length;
-            const failCount = results.filter(r => !r.success).length;
-            const warningCount = results.filter(r => r.warning).length;
+            const successCount = results.filter((r) => r.success).length;
+            const failCount = results.filter((r) => !r.success).length;
+            const warningCount = results.filter((r) => r.warning).length;
 
             if (validEmails.length === 1) {
                 const result = results[0];
@@ -246,32 +249,50 @@ export default function AdminSettersPage() {
                     if (result.warning) {
                         setAddWarning(result?.message || "");
                     } else {
-                        setAddSuccess(result.message || `Successfully added ${result.email} as a setter.`);
+                        setAddSuccess(
+                            result.message ||
+                            `Successfully added ${result.email} as a setter.`
+                        );
                     }
                 } else {
                     setAddError(result.message || "Failed to add setter.");
                 }
             } else {
                 setBulkResults(results);
-                
+
                 if (successCount > 0 && failCount === 0) {
-                    setAddSuccess(`Successfully added ${successCount} email${successCount > 1 ? 's' : ''}.${warningCount > 0 ? ` (${warningCount} with warnings)` : ''}`);
+                    setAddSuccess(
+                        `Successfully added ${successCount} email${successCount > 1 ? "s" : ""
+                        }.${warningCount > 0 ? ` (${warningCount} with warnings)` : ""}`
+                    );
                 } else if (successCount > 0 && failCount > 0) {
-                    setAddWarning(`Added ${successCount} email${successCount > 1 ? 's' : ''}, ${failCount} failed.`);
+                    setAddWarning(
+                        `Added ${successCount} email${successCount > 1 ? "s" : ""
+                        }, ${failCount} failed.`
+                    );
                 } else {
-                    setAddError(`Failed to add all ${failCount} email${failCount > 1 ? 's' : ''}.`);
+                    setAddError(
+                        `Failed to add all ${failCount} email${failCount > 1 ? "s" : ""}.`
+                    );
                 }
             }
 
             if (validationErrors.length > 0) {
                 const existingError = addError || "";
-                setAddError((existingError ? existingError + "\n\n" : "") + "Invalid emails skipped:\n" + validationErrors.join("\n"));
+                setAddError(
+                    (existingError ? existingError + "\n\n" : "") +
+                    "Invalid emails skipped:\n" +
+                    validationErrors.join("\n")
+                );
             }
 
             setNewEmail("");
             await fetchSetters();
         } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : "Unable to add setters. Please check your connection.";
+            const errorMessage =
+                e instanceof Error
+                    ? e.message
+                    : "Unable to add setters. Please check your connection.";
             setAddError(errorMessage);
         } finally {
             setAdding(false);
@@ -323,7 +344,8 @@ export default function AdminSettersPage() {
             }
 
             if (!res.ok) {
-                const errorMessage = data.error || "Failed to remove setter. Please try again.";
+                const errorMessage =
+                    data.error || "Failed to remove setter. Please try again.";
                 throw new Error(errorMessage);
             }
 
@@ -333,7 +355,10 @@ export default function AdminSettersPage() {
 
             await fetchSetters();
         } catch (e) {
-            const errorMessage = e instanceof Error ? e.message : "Unable to remove setter. Please check your connection.";
+            const errorMessage =
+                e instanceof Error
+                    ? e.message
+                    : "Unable to remove setter. Please check your connection.";
             setRemoveError(errorMessage);
         } finally {
             setRemoving(null);
@@ -349,15 +374,83 @@ export default function AdminSettersPage() {
         setBulkResults([]);
     };
 
+    const columns: ColumnDef<SetterEntry>[] = [
+        {
+            key: "email",
+            header: "Email",
+            cellClassName: "text-sm font-mono",
+        },
+        {
+            key: "registered",
+            header: "Status",
+            render: (setter) => (
+                <span
+                    className={`text-xs font-medium px-2 py-1 rounded-full ${setter.registered
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-700"
+                        }`}
+                >
+                    {setter.registered ? "Registered" : "Pending"}
+                </span>
+            ),
+        },
+        {
+            key: "user_name",
+            header: "Name",
+            cellClassName: "text-sm",
+            render: (setter) =>
+                setter.user_name ?? (
+                    <span className="text-muted-foreground">—</span>
+                ),
+        },
+        {
+            key: "added_at",
+            header: "Added",
+            cellClassName: "text-sm text-muted-foreground",
+            render: (setter) =>
+                new Date(setter.added_at).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                }),
+        },
+        {
+            key: "action",
+            header: "Action",
+            headerClassName: "text-right",
+            sortable: false,
+            render: (setter) => (
+                <div className="text-right">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={removing === setter.email}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            clearMessages();
+                            handleRemove(setter.email);
+                        }}
+                    >
+                        {removing === setter.email ? (
+                            <span className="text-xs">Deleting…</span>
+                        ) : (
+                            <Trash className="h-6 w-6 text-destructive" />
+                        )}
+                    </Button>
+                </div>
+            ),
+        },
+    ];
+
     return (
         <div className="max-w-4xl mx-auto px-4 py-8 space-y-4">
             <div>
                 <h1 className="text-2xl font-semibold">Problem Setters</h1>
                 <p className="text-sm text-muted-foreground mt-2">
                     Emails added here are granted the{" "}
-                    <code className="bg-muted px-1 rounded text-xs">setter</code>{" "}
-                    role when they sign up. Existing users are upgraded immediately.
-                    Removing an email downgrades them back to{" "}
+                    <code className="bg-muted px-1 rounded text-xs">setter</code> role
+                    when they sign up. Existing users are upgraded immediately. Removing
+                    an email downgrades them back to{" "}
                     <code className="bg-muted px-1 rounded text-xs">solver</code>.
                 </p>
             </div>
@@ -372,7 +465,12 @@ export default function AdminSettersPage() {
                         value={newEmail}
                         onChange={(e) => {
                             setNewEmail(e.target.value);
-                            if (addError || addWarning || addSuccess || bulkResults.length > 0) {
+                            if (
+                                addError ||
+                                addWarning ||
+                                addSuccess ||
+                                bulkResults.length > 0
+                            ) {
                                 clearMessages();
                             }
                         }}
@@ -382,7 +480,11 @@ export default function AdminSettersPage() {
                         autoComplete="email"
                     />
                     <Button type="submit" disabled={adding || !newEmail.trim()}>
-                        {adding ? <span className="text-xs">Adding…</span> : <Plus className="h-6 w-6" />}
+                        {adding ? (
+                            <span className="text-xs">Adding…</span>
+                        ) : (
+                            <Plus className="h-6 w-6" />
+                        )}
                     </Button>
                 </div>
 
@@ -421,12 +523,22 @@ export default function AdminSettersPage() {
                         <div className="font-medium mb-2">Detailed Results:</div>
                         {bulkResults.map((result, idx) => (
                             <div key={idx} className="flex items-start gap-2">
-                                <span className={`font-mono ${result.success ? 'text-green-700' : 'text-red-700'}`}>
-                                    {result.success ? '✓' : '✗'}
+                                <span
+                                    className={`font-mono ${result.success ? "text-green-700" : "text-red-700"
+                                        }`}
+                                >
+                                    {result.success ? "✓" : "✗"}
                                 </span>
                                 <span className="font-mono text-xs flex-1">{result.email}</span>
                                 {result.message && (
-                                    <span className={`text-xs ${result.warning ? 'text-amber-600' : result.success ? 'text-green-600' : 'text-red-600'}`}>
+                                    <span
+                                        className={`text-xs ${result.warning
+                                            ? "text-amber-600"
+                                            : result.success
+                                                ? "text-green-600"
+                                                : "text-red-600"
+                                            }`}
+                                    >
                                         {result.message}
                                     </span>
                                 )}
@@ -436,78 +548,23 @@ export default function AdminSettersPage() {
                 )}
             </form>
 
-            {loading ? (
-                <div className="space-y-2">
-                    {[...Array(3)].map((_, i) => (
-                        <div key={i} className="h-12 bg-muted animate-pulse rounded" />
-                    ))}
-                </div>
-            ) : error ? (
+            {error ? (
                 <div className="text-sm text-red-700 bg-red-100 border border-red-700 rounded px-4 py-2">
                     {error}
                 </div>
-            ) : setters.length === 0 ? (
-                <div className="text-sm text-muted-foreground py-4 text-center border border-dashed rounded">
-                    No setter emails added yet. Add an email above to get started.
-                </div>
             ) : (
-                <Table>
-                    <TableHeader>
-                        <TableRow className="bg-muted">
-                            <TableHead>Email</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Added</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {setters.map((s) => (
-                            <TableRow key={s.email}>
-                                <TableCell className="text-sm font-mono">
-                                    {s.email}
-                                </TableCell>
-                                <TableCell>
-                                    <span
-                                        className={`text-xs font-medium px-2 py-1 rounded-full ${s.registered
-                                                ? "bg-green-100 text-green-700"
-                                                : "bg-gray-100 text-gray-700"
-                                            }`}
-                                    >
-                                        {s.registered ? "Registered" : "Pending"}
-                                    </span>
-                                </TableCell>
-                                <TableCell className="text-sm">
-                                    {s.user_name ?? <span className="text-muted-foreground">—</span>}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                    {new Date(s.added_at).toLocaleDateString(undefined, {
-                                        year: "numeric",
-                                        month: "short",
-                                        day: "numeric",
-                                    })}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        disabled={removing === s.email}
-                                        onClick={() => {
-                                            clearMessages();
-                                            handleRemove(s.email);
-                                        }}
-                                    >
-                                        {removing === s.email ? (
-                                            <span className="text-xs">Deleting…</span>
-                                        ) : (
-                                            <Trash className="h-6 w-6 text-destructive" />
-                                        )}
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                <DataTable
+                    data={setters}
+                    columns={columns}
+                    keyExtractor={(setter) => setter.email}
+                    loading={loading}
+                    loadingRows={3}
+                    emptyState={
+                        <div className="text-sm text-muted-foreground py-4 text-center border border-dashed rounded">
+                            No setter emails added yet. Add an email above to get started.
+                        </div>
+                    }
+                />
             )}
         </div>
     );
