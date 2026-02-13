@@ -461,9 +461,16 @@ export default function ActivityPage() {
                 <div className="space-y-2">
                     {problems.map((problem) => (
                         <div key={problem.problem_id} className="border rounded-lg overflow-hidden">
-                            <button
+                            <div
+                                role="button"
+                                tabIndex={0}
                                 onClick={() => toggleProblem(problem.problem_id)}
-                                className="w-full px-4 py-4 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                    toggleProblem(problem.problem_id);
+                                    }
+                                }}
+                                className="w-full px-4 py-4 flex items-center justify-between hover:bg-muted/50 transition-colors text-left cursor-pointer"
                             >
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
                                     <div className="flex-shrink-0">
@@ -520,7 +527,7 @@ export default function ActivityPage() {
                                         <Trash2 className="h-4 w-4" />
                                     </button>
                                 </div>
-                            </button>
+                            </div>
 
                             {expandedProblem === problem.problem_id && (
                                 <div className="border-t bg-muted/20">

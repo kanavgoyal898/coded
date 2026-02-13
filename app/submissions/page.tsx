@@ -32,7 +32,7 @@ export default function SubmissionsPage() {
         key: keyof Submission | null;
         direction: "asc" | "desc";
     }>({
-        key: "created_at",
+        key: null,
         direction: "desc",
     });
     const [currentPage, setCurrentPage] = useState(1);
@@ -75,26 +75,26 @@ export default function SubmissionsPage() {
     };
 
     const sortedSubmissions = useMemo(() => {
-        if (!sortConfig.key) return submissions;
+        const keyToUse = sortConfig.key ?? "created_at";
+        const directionToUse = sortConfig.key ? sortConfig.direction : "desc";
 
         return [...submissions].sort((a, b) => {
-            const key = sortConfig.key!;
-            const aVal = a[key];
-            const bVal = b[key];
+            const aVal = a[keyToUse];
+            const bVal = b[keyToUse];
 
-            if (key === "created_at") {
-                const aTime = new Date(aVal as string).getTime();
-                const bTime = new Date(bVal as string).getTime();
-                return sortConfig.direction === "asc" ? aTime - bTime : bTime - aTime;
+            if (keyToUse === "created_at") {
+            const aTime = new Date(aVal as string).getTime();
+            const bTime = new Date(bVal as string).getTime();
+            return directionToUse === "asc" ? aTime - bTime : bTime - aTime;
             }
 
             if (typeof aVal === "number" && typeof bVal === "number") {
-                return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
+            return directionToUse === "asc" ? aVal - bVal : bVal - aVal;
             }
 
-            return sortConfig.direction === "asc"
-                ? String(aVal).localeCompare(String(bVal))
-                : String(bVal).localeCompare(String(aVal));
+            return directionToUse === "asc"
+            ? String(aVal).localeCompare(String(bVal))
+            : String(bVal).localeCompare(String(aVal));
         });
     }, [submissions, sortConfig]);
 
@@ -197,7 +197,7 @@ export default function SubmissionsPage() {
                                             {submission.score} / {submission.total_score}
                                         </TableCell>
                                         <TableCell>
-                                            {new Date(submission.created_at).toLocaleString()}
+                                            {new Date(submission.created_at.replace(" ", "T") + "Z").toLocaleString()}
                                         </TableCell>
                                     </TableRow>
                                 ))

@@ -25,13 +25,13 @@ export function proxy(req: NextRequest) {
 
     if (pathname === "/") {
         return NextResponse.redirect(
-            new URL(session ? "/submissions" : "/login", req.url)
+            new URL(session ? "/problems" : "/login", req.url)
         );
     }
 
     if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
         if (session) {
-            return NextResponse.redirect(new URL("/submissions", req.url));
+            return NextResponse.redirect(new URL("/problems", req.url));
         }
         return NextResponse.next();
     }

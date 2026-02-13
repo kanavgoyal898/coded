@@ -22,6 +22,7 @@ export function NavigationBar() {
 
                     {!loading && user && (
                         <nav className="flex items-center gap-4">
+                            <Link className="text-sm" href="/problems">Problems</Link>
                             <Link className="text-sm" href="/submissions">Submissions</Link>
 
                             {(user.role === "setter" || user.role === "admin") && (
