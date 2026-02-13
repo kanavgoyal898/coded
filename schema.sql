@@ -53,8 +53,8 @@ CREATE TABLE IF NOT EXISTS submission (
     memory_used_kb INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     finished_at DATETIME NULL,
-    FOREIGN KEY (user_id) REFERENCES user(id),
-    FOREIGN KEY (problem_id) REFERENCES problem(id)
+    FOREIGN KEY (user_id) REFERENCES user(id) ON DELETE CASCADE,
+    FOREIGN KEY (problem_id) REFERENCES problem(id) ON DELETE CASCADE
 );
 
 PRAGMA foreign_keys = ON;

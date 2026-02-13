@@ -292,8 +292,15 @@ export async function GET(req: NextRequest) {
                                                     return;
                                                 }
 
+                                                const normalizedProblem: ProblemDetails & { deadline_at: string | null } = {
+                                                    ...problemDetails,
+                                                    deadline_at: problemDetails.deadline_at
+                                                        ? new Date(problemDetails.deadline_at.replace(" ", "T") + "Z").toISOString()
+                                                        : null,
+                                                };
+
                                                 resolve(NextResponse.json({
-                                                    problem: problemDetails,
+                                                    problem: normalizedProblem,
                                                     testcases: testcases || [],
                                                     submissions: submissions || []
                                                 }));
