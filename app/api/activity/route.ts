@@ -7,15 +7,10 @@ export const runtime = "nodejs";
 
 const MAX_TITLE_LENGTH = 256;
 const MAX_STATEMENT_LENGTH = 64 * 1024;
-const MAX_TESTCASE_INPUT_LENGTH = 16 * 1024;
-const MAX_TESTCASE_OUTPUT_LENGTH = 16 * 1024;
-const MAX_TESTCASES = 64;
 const MIN_TIME_LIMIT = 1;
 const MAX_TIME_LIMIT = 16 * 1024;
 const MIN_MEMORY_LIMIT = 1;
 const MAX_MEMORY_LIMIT = 16 * 1024 * 1024;
-const MIN_WEIGHT = 0;
-const MAX_WEIGHT = 100;
 
 interface ProblemWithSubmissions {
     problem_id: number;
@@ -61,18 +56,10 @@ interface Testcase {
     is_sample: number;
 }
 
-interface TestcaseInput {
-    input: string;
-    output: string;
-    weight?: number;
-    is_sample?: boolean;
-}
-
 interface UpdateProblemBody {
     problem_id: number;
     title: string;
     statement: string;
-    testcases: TestcaseInput[];
     time_limit_ms?: number;
     memory_limit_kb?: number;
     visibility?: "public" | "private";
@@ -305,10 +292,10 @@ export async function GET(req: NextRequest) {
                                                     return;
                                                 }
 
-                                                resolve(NextResponse.json({ 
+                                                resolve(NextResponse.json({
                                                     problem: problemDetails,
                                                     testcases: testcases || [],
-                                                    submissions: submissions || [] 
+                                                    submissions: submissions || []
                                                 }));
                                             }
                                         );
@@ -469,17 +456,9 @@ export async function PUT(req: NextRequest) {
         );
     }
 
-    if (!("testcases" in problemData) || !Array.isArray(problemData.testcases)) {
-        return NextResponse.json(
-            { error: "Testcases are required and must be an array." },
-            { status: 422 }
-        );
-    }
-
     const problem_id = problemData.problem_id;
     const title = problemData.title.trim();
     const statement = problemData.statement.trim();
-    const testcases = problemData.testcases;
     const time_limit_ms = problemData.time_limit_ms;
     const memory_limit_kb = problemData.memory_limit_kb;
     const visibility = problemData.visibility;
@@ -509,106 +488,6 @@ export async function PUT(req: NextRequest) {
     if (statement.length > MAX_STATEMENT_LENGTH) {
         return NextResponse.json(
             { error: `Statement exceeds maximum length of ${MAX_STATEMENT_LENGTH} characters.` },
-            { status: 422 }
-        );
-    }
-
-    if (testcases.length === 0) {
-        return NextResponse.json(
-            { error: "At least one testcase is required." },
-            { status: 422 }
-        );
-    }
-
-    if (testcases.length > MAX_TESTCASES) {
-        return NextResponse.json(
-            { error: `Maximum of ${MAX_TESTCASES} testcases allowed.` },
-            { status: 422 }
-        );
-    }
-
-    let hiddenTestcaseCount = 0;
-    let totalWeight = 0;
-
-    for (let i = 0; i < testcases.length; i++) {
-        const t = testcases[i];
-
-        if (!t || typeof t !== "object") {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Invalid testcase format.` },
-                { status: 422 }
-            );
-        }
-
-        if (typeof t.input !== "string") {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Input must be a string.` },
-                { status: 422 }
-            );
-        }
-
-        if (typeof t.output !== "string") {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Output must be a string.` },
-                { status: 422 }
-            );
-        }
-
-        if (t.input.length > MAX_TESTCASE_INPUT_LENGTH) {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Input exceeds maximum length of ${MAX_TESTCASE_INPUT_LENGTH} characters.` },
-                { status: 422 }
-            );
-        }
-
-        if (t.output.length > MAX_TESTCASE_OUTPUT_LENGTH) {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Output exceeds maximum length of ${MAX_TESTCASE_OUTPUT_LENGTH} characters.` },
-                { status: 422 }
-            );
-        }
-
-        const weight = t.weight ?? 1;
-
-        if (typeof weight !== "number" || isNaN(weight) || !Number.isFinite(weight)) {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Weight must be a valid number.` },
-                { status: 422 }
-            );
-        }
-
-        if (!Number.isInteger(weight)) {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Weight must be an integer.` },
-                { status: 422 }
-            );
-        }
-
-        if (weight < MIN_WEIGHT || weight > MAX_WEIGHT) {
-            return NextResponse.json(
-                { error: `Testcase ${i + 1}: Weight must be between ${MIN_WEIGHT} and ${MAX_WEIGHT}.` },
-                { status: 422 }
-            );
-        }
-
-        const isSample = t.is_sample === true;
-
-        if (!isSample) {
-            hiddenTestcaseCount++;
-            totalWeight += weight;
-        }
-    }
-
-    if (hiddenTestcaseCount === 0) {
-        return NextResponse.json(
-            { error: "At least one non-sample testcase is required." },
-            { status: 422 }
-        );
-    }
-
-    if (totalWeight <= 0) {
-        return NextResponse.json(
-            { error: "Total weight of hidden testcases must be greater than zero." },
             { status: 422 }
         );
     }
@@ -812,9 +691,10 @@ export async function PUT(req: NextRequest) {
                                 visibility ?? "public",
                                 problem_id,
                             ],
-                            function (err) {
+                            async function (err) {
+                                if (db) await closeDb(db);
+
                                 if (err) {
-                                    closeDb(db!).catch(() => { });
                                     resolve(
                                         NextResponse.json(
                                             { error: "Failed to update problem. Please try again." },
@@ -824,96 +704,14 @@ export async function PUT(req: NextRequest) {
                                     return;
                                 }
 
-                                db!.run(
-                                    "DELETE FROM testcase WHERE problem_id = ?",
-                                    [problem_id],
-                                    (err) => {
-                                        if (err) {
-                                            closeDb(db!).catch(() => { });
-                                            resolve(
-                                                NextResponse.json(
-                                                    { error: "Failed to update testcases. Please try again." },
-                                                    { status: 500 }
-                                                )
-                                            );
-                                            return;
-                                        }
-
-                                        let completed = 0;
-                                        let failed = false;
-
-                                        if (!db) {
-                                            resolve(
-                                                NextResponse.json(
-                                                    { error: "Database connection lost. Problem updated but testcases not added." },
-                                                    { status: 500 }
-                                                )
-                                            );
-                                            return;
-                                        }
-
-                                        for (let i = 0; i < testcases.length; i++) {
-                                            const t = testcases[i];
-
-                                            if (!db) {
-                                                if (!failed) {
-                                                    failed = true;
-                                                    resolve(
-                                                        NextResponse.json(
-                                                            { error: "Database connection lost during testcase insertion." },
-                                                            { status: 500 }
-                                                        )
-                                                    );
-                                                }
-                                                return;
-                                            }
-
-                                            db.run(
-                                                `
-                                                INSERT INTO testcase
-                                                (problem_id, input_data, output_data, weight, is_sample)
-                                                VALUES (?, ?, ?, ?, ?)
-                                                `,
-                                                [
-                                                    problem_id,
-                                                    t.input,
-                                                    t.output,
-                                                    t.weight ?? 1,
-                                                    t.is_sample === true ? 1 : 0,
-                                                ],
-                                                (err) => {
-                                                    if (failed) return;
-
-                                                    if (err) {
-                                                        failed = true;
-                                                        closeDb(db!).catch(() => { });
-                                                        resolve(
-                                                            NextResponse.json(
-                                                                { error: "Failed to insert testcases. Problem may be incomplete." },
-                                                                { status: 500 }
-                                                            )
-                                                        );
-                                                        return;
-                                                    }
-
-                                                    completed++;
-
-                                                    if (completed === testcases.length) {
-                                                        closeDb(db!).catch(() => { });
-                                                        resolve(
-                                                            NextResponse.json(
-                                                                {
-                                                                    id: problem_id,
-                                                                    slug,
-                                                                },
-                                                                { status: 200 }
-                                                            )
-                                                        );
-                                                    }
-                                                }
-                                            );
-                                        }
-                                    }
+                                resolve(
+                                    NextResponse.json(
+                                        {
+                                            id: problem_id,
+                                            slug,
+                                        },
+                                        { status: 200 }
+                                    )
                                 );
                             }
                         );

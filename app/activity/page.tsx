@@ -35,13 +35,6 @@ type SubmissionSummary = {
     source_code: string;
 };
 
-type Testcase = {
-    input: string;
-    output: string;
-    weight?: number;
-    is_sample?: boolean;
-};
-
 type SortKey = keyof SubmissionSummary;
 
 const statusLabels: Record<string, string> = {
@@ -53,15 +46,10 @@ const ROWS_PER_PAGE = 8;
 
 const MAX_TITLE_LENGTH = 256;
 const MAX_STATEMENT_LENGTH = 64 * 1024;
-const MAX_TESTCASE_INPUT_LENGTH = 16 * 1024;
-const MAX_TESTCASE_OUTPUT_LENGTH = 16 * 1024;
-const MAX_TESTCASES = 64;
 const MIN_TIME_LIMIT = 1;
 const MAX_TIME_LIMIT = 16 * 1024;
 const MIN_MEMORY_LIMIT = 1;
 const MAX_MEMORY_LIMIT = 16 * 1024 * 1024;
-const MIN_WEIGHT = 0;
-const MAX_WEIGHT = 100;
 
 const formatNumbers = (value: string | number) => {
     return Number(value).toLocaleString('en-US');
@@ -89,9 +77,6 @@ export default function ActivityPage() {
     const [editTimeLimit, setEditTimeLimit] = useState("1024");
     const [editMemoryLimit, setEditMemoryLimit] = useState("262144");
     const [editDeadline, setEditDeadline] = useState("");
-    const [editTestcases, setEditTestcases] = useState<Testcase[]>([
-        { input: "", output: "", weight: 1, is_sample: true },
-    ]);
     const [editValidationError, setEditValidationError] = useState<string | null>(null);
     const [editing, setEditing] = useState(false);
     const [loadingEditData, setLoadingEditData] = useState(false);
@@ -103,7 +88,7 @@ export default function ActivityPage() {
 
             try {
                 const res = await fetch("/api/activity");
-                
+
                 if (res.status === 401) {
                     router.push("/login");
                     return;
@@ -156,7 +141,7 @@ export default function ActivityPage() {
 
         try {
             const res = await fetch(`/api/activity?problem_id=${problemId}`);
-            
+
             if (res.status === 401) {
                 router.push("/login");
                 return;
@@ -179,7 +164,7 @@ export default function ActivityPage() {
 
             const data = await res.json();
             setSubmissions(prev => ({ ...prev, [problemId]: data.submissions || [] }));
-            
+
             if (!sortConfigs[problemId]) {
                 setSortConfigs(prev => ({
                     ...prev,
@@ -204,7 +189,7 @@ export default function ActivityPage() {
                 ...prev,
                 [problemId]: {
                     key,
-                    direction: current.key === key 
+                    direction: current.key === key
                         ? (current.direction === "asc" ? "desc" : "asc")
                         : "asc"
                 }
@@ -261,7 +246,7 @@ export default function ActivityPage() {
         const blob = new Blob([sourceCode], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
-        
+
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     };
 
@@ -321,29 +306,18 @@ export default function ActivityPage() {
 
         try {
             const res = await fetch(`/api/activity?problem_id=${problem.problem_id}`);
-            
+
             if (!res.ok) {
                 throw new Error("Failed to load problem details");
             }
 
             const data = await res.json();
-            
+
             setEditTitle(data.problem?.title || "");
             setEditStatement(data.problem?.statement || "");
             setEditTimeLimit(String(data.problem?.time_limit_ms || 1024));
             setEditMemoryLimit(String(data.problem?.memory_limit_kb || 262144));
             setEditDeadline(data.problem?.deadline_at ? new Date(data.problem.deadline_at).toISOString().slice(0, 16) : "");
-            
-            if (data.testcases && data.testcases.length > 0) {
-                setEditTestcases(data.testcases.map((tc: Testcase) => ({
-                    input: tc.input || "",
-                    output: tc.output || "",
-                    weight: tc.weight || 1,
-                    is_sample: tc.is_sample === true || false,
-                })));
-            } else {
-                setEditTestcases([{ input: "", output: "", weight: 1, is_sample: true }]);
-            }
         } catch (err) {
             setEditValidationError(err instanceof Error ? err.message : "Failed to load problem");
         } finally {
@@ -385,94 +359,7 @@ export default function ActivityPage() {
             }
         }
 
-        if (editTestcases.length === 0) {
-            return "At least one testcase is required.";
-        }
-
-        if (editTestcases.length > MAX_TESTCASES) {
-            return `Maximum of ${MAX_TESTCASES} testcases allowed.`;
-        }
-
-        for (let i = 0; i < editTestcases.length; i++) {
-            const tc = editTestcases[i];
-
-            if (tc.input.length > MAX_TESTCASE_INPUT_LENGTH) {
-                return `Testcase ${i + 1}: Input exceeds maximum length of ${MAX_TESTCASE_INPUT_LENGTH} characters.`;
-            }
-
-            if (tc.output.length > MAX_TESTCASE_OUTPUT_LENGTH) {
-                return `Testcase ${i + 1}: Output exceeds maximum length of ${MAX_TESTCASE_OUTPUT_LENGTH} characters.`;
-            }
-
-            const weight = tc.weight ?? 1;
-            if (typeof weight !== "number" || isNaN(weight) || weight < MIN_WEIGHT || weight > MAX_WEIGHT) {
-                return `Testcase ${i + 1}: Weight must be between ${MIN_WEIGHT} and ${MAX_WEIGHT}.`;
-            }
-        }
-
-        const hiddenTestcases = editTestcases.filter(tc => !tc.is_sample);
-        if (hiddenTestcases.length === 0) {
-            return "At least one non-sample testcase is required.";
-        }
-
-        const totalWeight = editTestcases.reduce((sum, tc) => {
-            const weight = tc.weight ?? 1;
-            return sum + (tc.is_sample ? 0 : weight);
-        }, 0);
-
-        if (totalWeight <= 0) {
-            return "Total weight of hidden testcases must be greater than 0.";
-        }
-
         return null;
-    };
-
-    const addEditTestcase = () => {
-        if (editTestcases.length >= MAX_TESTCASES) {
-            setEditValidationError(`Maximum of ${MAX_TESTCASES} testcases allowed.`);
-            return;
-        }
-
-        setEditValidationError(null);
-        setEditTestcases([
-            ...editTestcases,
-            { input: "", output: "", weight: 1, is_sample: false },
-        ]);
-    };
-
-    const removeEditTestcase = (index: number) => {
-        if (editTestcases.length <= 1) {
-            setEditValidationError("At least one testcase is required.");
-            return;
-        }
-
-        setEditValidationError(null);
-        setEditTestcases(editTestcases.filter((_, i) => i !== index));
-    };
-
-    const updateEditTestcase = (
-        index: number,
-        field: "input" | "output" | "weight",
-        value: string
-    ) => {
-        setEditValidationError(null);
-        const updated = [...editTestcases];
-
-        if (field === "weight") {
-            const numValue = parseInt(value);
-            updated[index][field] = isNaN(numValue) ? 0 : numValue;
-        } else {
-            updated[index][field] = value;
-        }
-
-        setEditTestcases(updated);
-    };
-
-    const toggleEditSample = (index: number) => {
-        setEditValidationError(null);
-        const updated = [...editTestcases];
-        updated[index].is_sample = !updated[index].is_sample;
-        setEditTestcases(updated);
     };
 
     const submitEdit = async () => {
@@ -499,12 +386,6 @@ export default function ActivityPage() {
                     time_limit_ms: parseInt(editTimeLimit),
                     memory_limit_kb: parseInt(editMemoryLimit),
                     deadline_at: editDeadline && editDeadline.trim().length > 0 ? editDeadline.trim() : null,
-                    testcases: editTestcases.map(tc => ({
-                        input: tc.input,
-                        output: tc.output,
-                        weight: tc.weight ?? 1,
-                        is_sample: tc.is_sample === true,
-                    })),
                 }),
             });
 
@@ -530,8 +411,8 @@ export default function ActivityPage() {
 
             const data = await res.json();
 
-            setProblems(prev => prev.map(p => 
-                p.problem_id === problemToEdit.problem_id 
+            setProblems(prev => prev.map(p =>
+                p.problem_id === problemToEdit.problem_id
                     ? { ...p, problem_title: editTitle.trim(), problem_slug: data.slug }
                     : p
             ));
@@ -718,11 +599,10 @@ export default function ActivityPage() {
                                                                 </TableCell>
                                                                 <TableCell>
                                                                     <span
-                                                                        className={`text-xs font-medium px-2 py-1 rounded-full ${
-                                                                            submission.latest_status === "accepted"
+                                                                        className={`text-xs font-medium px-2 py-1 rounded-full ${submission.latest_status === "accepted"
                                                                                 ? "bg-green-100 text-green-700"
                                                                                 : "bg-red-100 text-red-700"
-                                                                        }`}
+                                                                            }`}
                                                                     >
                                                                         {statusLabels[submission.latest_status] || submission.latest_status}
                                                                     </span>
@@ -805,7 +685,6 @@ export default function ActivityPage() {
                 </div>
             )}
 
-            {/* Delete Confirmation Dialog */}
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <DialogContent>
                     <DialogHeader>
@@ -818,8 +697,8 @@ export default function ActivityPage() {
                         <DialogClose asChild>
                             <Button variant="outline" disabled={deleting}>Cancel</Button>
                         </DialogClose>
-                        <Button 
-                            variant="destructive" 
+                        <Button
+                            variant="destructive"
                             onClick={confirmDelete}
                             disabled={deleting}
                         >
@@ -829,7 +708,6 @@ export default function ActivityPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Edit Problem Dialog */}
             <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
@@ -932,98 +810,6 @@ export default function ActivityPage() {
                                     disabled={editing}
                                 />
                             </div>
-
-                            <div className="font-semibold space-y-4">
-                                <Label>Testcases ({formatNumbers(editTestcases.length)}/{formatNumbers(MAX_TESTCASES)})</Label>
-
-                                {editTestcases.map((testcase, i) => (
-                                    <div key={i} className="space-y-2 p-4 border rounded">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm font-medium">
-                                                Testcase {i + 1}
-                                                {testcase.is_sample && (
-                                                    <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-1 rounded">
-                                                        Sample
-                                                    </span>
-                                                )}
-                                            </span>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => toggleEditSample(i)}
-                                                    disabled={editing}
-                                                >
-                                                    {testcase.is_sample ? "Unmark Sample" : "Mark as Sample"}
-                                                </Button>
-                                                {editTestcases.length > 1 && (
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => removeEditTestcase(i)}
-                                                        disabled={editing}
-                                                    >
-                                                        Remove
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                            <div className="space-y-1">
-                                                <Label className="text-xs">Input</Label>
-                                                <Textarea
-                                                    className="min-h-24 font-mono text-sm"
-                                                    value={testcase.input}
-                                                    onChange={(e) => updateEditTestcase(i, "input", e.target.value)}
-                                                    maxLength={MAX_TESTCASE_INPUT_LENGTH}
-                                                    disabled={editing}
-                                                    placeholder="Test input"
-                                                />
-                                                <p className="text-xs text-muted-foreground">
-                                                    {formatNumbers(testcase.input.length)}/{formatNumbers(MAX_TESTCASE_INPUT_LENGTH)}
-                                                </p>
-                                            </div>
-
-                                            <div className="space-y-1">
-                                                <Label className="text-xs">Output</Label>
-                                                <Textarea
-                                                    className="min-h-24 font-mono text-sm"
-                                                    value={testcase.output}
-                                                    onChange={(e) => updateEditTestcase(i, "output", e.target.value)}
-                                                    maxLength={MAX_TESTCASE_OUTPUT_LENGTH}
-                                                    disabled={editing}
-                                                    placeholder="Expected output"
-                                                />
-                                                <p className="text-xs text-muted-foreground">
-                                                    {formatNumbers(testcase.output.length)}/{formatNumbers(MAX_TESTCASE_OUTPUT_LENGTH)}
-                                                </p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2">
-                                            <Label className="text-xs">Weight (points)</Label>
-                                            <Input
-                                                type="number"
-                                                min={MIN_WEIGHT}
-                                                max={MAX_WEIGHT}
-                                                value={testcase.weight ?? 1}
-                                                onChange={(e) => updateEditTestcase(i, "weight", e.target.value)}
-                                                disabled={editing}
-                                            />
-                                        </div>
-                                    </div>
-                                ))}
-
-                                <Button
-                                    variant="outline"
-                                    onClick={addEditTestcase}
-                                    className="w-full"
-                                    disabled={editing || editTestcases.length >= MAX_TESTCASES}
-                                >
-                                    + Add Testcase
-                                </Button>
-                            </div>
                         </div>
                     )}
 
@@ -1031,7 +817,7 @@ export default function ActivityPage() {
                         <DialogClose asChild>
                             <Button variant="outline" disabled={editing || loadingEditData}>Cancel</Button>
                         </DialogClose>
-                        <Button 
+                        <Button
                             onClick={submitEdit}
                             disabled={editing || loadingEditData}
                         >
