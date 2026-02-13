@@ -3,7 +3,7 @@ import { getSessionUserFromRequest } from "@/lib/auth.edge";
 
 const PUBLIC_PATHS = ["/login", "/signup"];
 const AUTH_PATHS = ["/problems", "/submissions"];
-const SETTER_PATHS = ["/set"];
+const SETTER_PATHS = ["/set", "/activity"];
 
 export function proxy(req: NextRequest) {
     const { pathname } = req.nextUrl;

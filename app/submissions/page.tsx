@@ -110,7 +110,7 @@ export default function SubmissionsPage() {
 
     if (error) {
         return (
-            <div className="max-w-4xl mx-auto px-2 py-8">
+            <div className="max-w-4xl mx-auto px-4 py-8">
                 <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
                     {error}
                 </div>
@@ -119,7 +119,7 @@ export default function SubmissionsPage() {
     }
 
     return (
-        <div className="max-w-4xl mx-auto px-2 py-8 space-y-4">
+        <div className="max-w-4xl mx-auto px-4 py-8 space-y-4">
             <h1 className="text-2xl font-semibold">Submissions</h1>
 
             {submissions.length === 0 ? (

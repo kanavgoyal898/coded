@@ -265,7 +265,7 @@ export default function AddProblemPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
+    <div className="max-w-4xl mx-auto px-4 py-8 space-y-4">
       <h2 className="text-2xl font-semibold">Set Problem</h2>
 
       {validationError && (

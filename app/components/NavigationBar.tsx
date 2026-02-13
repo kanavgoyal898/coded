@@ -25,7 +25,10 @@ export function NavigationBar() {
                             <Link className="text-sm" href="/submissions">Submissions</Link>
 
                             {(user.role === "setter" || user.role === "admin") && (
-                                <Link className="text-sm" href="/set">Set Problem</Link>
+                                <>
+                                    <Link className="text-sm" href="/set">Set Problem</Link>
+                                    <Link className="text-sm" href="/activity">Activity</Link>
+                                </>
                             )}
 
                             {user.role === "admin" && (
