@@ -52,7 +52,7 @@ export function proxy(req: NextRequest) {
             return NextResponse.redirect(loginUrl);
         }
         if (session.role !== "setter" && session.role !== "admin") {
-            return NextResponse.redirect(new URL("/submissions", req.url));
+            return NextResponse.redirect(new URL("/problems", req.url));
         }
         return NextResponse.next();
     }

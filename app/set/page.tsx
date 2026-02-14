@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
 
 type Testcase = {
@@ -45,6 +46,8 @@ export default function AddProblemPage() {
   const [timeLimit, setTimeLimit] = useState("1024");
   const [memoryLimit, setMemoryLimit] = useState("262144");
   const [deadline, setDeadline] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
+  const [solvers, setSolvers] = useState("");
   const [testcases, setTestcases] = useState<Testcase[]>([
     { input: "", output: "", weight: 1, is_sample: true },
   ]);
@@ -53,6 +56,19 @@ export default function AddProblemPage() {
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ApiResponse | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const parseEmailList = (input: string): string[] => {
+    if (!input || input.trim().length === 0) {
+      return [];
+    }
+
+    const emails = input
+      .split(/[,;\|\n\t]|[\s]{2,}/)
+      .map((email) => email.trim())
+      .filter((email) => email.length > 0);
+
+    return [...new Set(emails)];
+  };
 
   const validateForm = (): string | null => {
     if (!title || title.trim().length === 0) {
@@ -135,6 +151,13 @@ export default function AddProblemPage() {
       return "Total weight of hidden testcases must be greater than 0.";
     }
 
+    if (visibility === "private") {
+      const solverEmails = parseEmailList(solvers);
+      if (solverEmails.length === 0) {
+        return "Private problems must have at least one solver email specified.";
+      }
+    }
+
     return null;
   };
 
@@ -197,6 +220,8 @@ export default function AddProblemPage() {
     setValidationError(null);
 
     try {
+      const solverEmails = visibility === "private" ? parseEmailList(solvers) : [];
+
       const res = await fetch("/api/set", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -207,6 +232,8 @@ export default function AddProblemPage() {
           time_limit_ms: parseInt(timeLimit),
           memory_limit_kb: parseInt(memoryLimit),
           deadline_at: deadline && deadline.trim().length > 0 ? deadline.trim() : null,
+          visibility: visibility,
+          solvers: solverEmails.length > 0 ? solverEmails : undefined,
           testcases: testcases.map(tc => ({
             input: tc.input,
             output: tc.output,
@@ -254,7 +281,9 @@ export default function AddProblemPage() {
       setTimeLimit("1024");
       setMemoryLimit("262144");
       setDeadline("");
-      setTestcases([{ input: "", output: "", weight: 0, is_sample: true }]);
+      setVisibility("public");
+      setSolvers("");
+      setTestcases([{ input: "", output: "", weight: 1, is_sample: true }]);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unable to create problem. Please check your connection.";
       setResult({ error: errorMessage });
@@ -365,6 +394,46 @@ export default function AddProblemPage() {
         />
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="visibility-select">Visibility</Label>
+        <Select
+          value={visibility}
+          onValueChange={(value: "public" | "private") => {
+            setVisibility(value);
+            setValidationError(null);
+          }}
+          disabled={submitting}
+        >
+          <SelectTrigger id="visibility-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="public">Public - Visible to all users</SelectItem>
+            <SelectItem value="private">Private - Visible only to specified users</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {visibility === "private" && (
+        <div className="space-y-2">
+          <Label htmlFor="solvers-input">Add email address(es)</Label>
+          <Textarea
+            id="solvers-input"
+            className="min-h-24"
+            value={solvers}
+            onChange={(e) => {
+              setSolvers(e.target.value);
+              setValidationError(null);
+            }}
+            disabled={submitting}
+            placeholder="user@example.com"
+          />
+          <p className="text-xs text-muted-foreground">
+            {parseEmailList(solvers).length} email(s) specified
+          </p>
+        </div>
+      )}
+
       <div className="font-semibold space-y-4">
         <Label>Testcases ({formatNumbers(testcases.length)}/{formatNumbers(MAX_TESTCASES)})</Label>
 
@@ -468,7 +537,12 @@ export default function AddProblemPage() {
         {submitting ? "Creating Problem..." : "Add Problem"}
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen && result?.id) {
+          router.push("/activity");
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{result?.id ? "Success" : "Error"}</DialogTitle>

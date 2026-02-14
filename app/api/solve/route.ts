@@ -12,11 +12,13 @@ const MAX_PROBLEM_ID = 2 * 1024 * 1024 * 1024;
 const MIN_PROBLEM_ID = 1;
 const ALLOWED_EXTENSIONS = [".c", ".cpp", ".cc", ".cxx", ".py"];
 
-interface ProblemDeadlineRow {
+interface ProblemAccessRow {
     deadline_at: string | null;
+    visibility: string;
+    setter_id: number;
 }
 
-function checkProblemDeadline(problemId: number): Promise<{ valid: boolean; error?: string }> {
+function checkProblemAccess(problemId: number, userId: number, userEmail: string, userRole: string): Promise<{ valid: boolean; error?: string }> {
     return new Promise((resolve) => {
         const dbPath = path.join(process.cwd(), "database.db");
         const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
@@ -26,17 +28,17 @@ function checkProblemDeadline(problemId: number): Promise<{ valid: boolean; erro
             }
 
             db.get(
-                `SELECT deadline_at FROM problem WHERE id = ?`,
+                `SELECT deadline_at, visibility, setter_id FROM problem WHERE id = ?`,
                 [problemId],
-                (err, row: ProblemDeadlineRow) => {
-                    db.close();
-
+                (err, row: ProblemAccessRow) => {
                     if (err) {
+                        db.close();
                         resolve({ valid: false, error: "Failed to retrieve problem information." });
                         return;
                     }
 
                     if (!row) {
+                        db.close();
                         resolve({ valid: false, error: "Problem not found." });
                         return;
                     }
@@ -46,15 +48,48 @@ function checkProblemDeadline(problemId: number): Promise<{ valid: boolean; erro
                         const now = new Date();
 
                         if (now > deadline) {
-                            resolve({ 
-                                valid: false, 
-                                error: "This problem's deadline has passed and is no longer accepting submissions." 
+                            db.close();
+                            resolve({
+                                valid: false,
+                                error: "This problem's deadline has passed and is no longer accepting submissions."
                             });
                             return;
                         }
                     }
 
-                    resolve({ valid: true });
+                    if (row.visibility === "private") {
+                        if (userRole === "admin" || row.setter_id === userId) {
+                            db.close();
+                            resolve({ valid: true });
+                            return;
+                        }
+
+                        db.get(
+                            "SELECT 1 FROM solver WHERE problem_id = ? AND email = ?",
+                            [problemId, userEmail],
+                            (err, solverRow) => {
+                                db.close();
+
+                                if (err) {
+                                    resolve({ valid: false, error: "Failed to verify access permissions." });
+                                    return;
+                                }
+
+                                if (!solverRow) {
+                                    resolve({
+                                        valid: false,
+                                        error: "You do not have permission to submit solutions to this problem."
+                                    });
+                                    return;
+                                }
+
+                                resolve({ valid: true });
+                            }
+                        );
+                    } else {
+                        db.close();
+                        resolve({ valid: true });
+                    }
                 }
             );
         });
@@ -151,10 +186,42 @@ export async function POST(req: NextRequest) {
         );
     }
 
-    const deadlineCheck = await checkProblemDeadline(problemId);
-    if (!deadlineCheck.valid) {
+    const dbPath = path.join(process.cwd(), "database.db");
+    const userEmail = await new Promise<string>((resolve, reject) => {
+        const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+            if (err) {
+                reject(new Error("Database connection failed"));
+                return;
+            }
+
+            db.get(
+                "SELECT email FROM user WHERE id = ?",
+                [session.userId],
+                (err, row: { email: string } | undefined) => {
+                    db.close();
+
+                    if (err || !row) {
+                        reject(new Error("Failed to retrieve user information"));
+                        return;
+                    }
+
+                    resolve(row.email);
+                }
+            );
+        });
+    }).catch(() => "");
+
+    if (!userEmail) {
         return NextResponse.json(
-            { error: deadlineCheck.error },
+            { error: "Failed to verify user information." },
+            { status: 500 }
+        );
+    }
+
+    const accessCheck = await checkProblemAccess(problemId, session.userId, userEmail, session.role || "solver");
+    if (!accessCheck.valid) {
+        return NextResponse.json(
+            { error: accessCheck.error },
             { status: 403 }
         );
     }

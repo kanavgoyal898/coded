@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
+import { Check } from "lucide-react";
 
 type Problem = {
   id: number;
@@ -14,6 +15,7 @@ type Problem = {
   memory_limit_kb: number;
   visibility: string;
   created_at: string;
+  solved: number;
 };
 
 export default function ProblemsPage() {
@@ -66,6 +68,17 @@ export default function ProblemsPage() {
   };
 
   const columns: ColumnDef<Problem>[] = [
+    {
+      key: "solved",
+      header: "",
+      cellClassName: "w-8",
+      render: (problem) =>
+        problem.solved === 1 ? (
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-green-700">
+            <Check className="w-4 h-4" strokeWidth={4} />
+          </span>
+        ) : null,
+    },
     {
       key: "title",
       header: "Title",

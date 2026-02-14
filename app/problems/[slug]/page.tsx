@@ -347,7 +347,12 @@ export default function SubmitProblemPage() {
         </Button>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (!isOpen && !submissionError) {
+          router.push("/problems");
+        }
+      }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Submission Result</DialogTitle>

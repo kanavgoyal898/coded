@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import path from "path";
+import { getSessionUserFromRequest } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,8 @@ interface ProblemRow {
     created_at: string;
     setter_name: string | null;
     deadline_at: string | null;
+    visibility: string;
+    setter_id: number;
 }
 
 interface SampleRow {
@@ -83,6 +86,15 @@ export async function GET(
         );
     }
 
+    const session = getSessionUserFromRequest(req);
+
+    if (!session) {
+        return NextResponse.json(
+            { error: "Authentication required. Please log in to continue." },
+            { status: 401 }
+        );
+    }
+
     let resolvedParams: { slug: string };
 
     try {
@@ -128,163 +140,225 @@ export async function GET(
             }
 
             db.get(
-                `
-                SELECT 
-                    p.id,
-                    p.title,
-                    p.slug,
-                    p.statement,
-                    p.time_limit_ms,
-                    p.memory_limit_kb,
-                    p.created_at,
-                    p.deadline_at,
-                    u.name as setter_name
-                FROM problem p
-                LEFT JOIN user u ON p.setter_id = u.id
-                WHERE p.slug = ? AND p.visibility = 'public'
-                `,
-                [slug],
-                (err, problem: ProblemRow) => {
-                    if (err) {
+                "SELECT email FROM user WHERE id = ?",
+                [session.userId],
+                (err, userRow: { email: string } | undefined) => {
+                    if (err || !userRow) {
                         closeDb(db!).catch(() => { });
                         resolve(
                             NextResponse.json(
-                                { error: "Failed to retrieve problem. Please try again." },
+                                { error: "Failed to retrieve user information." },
                                 { status: 500 }
                             )
                         );
                         return;
                     }
 
-                    if (!problem) {
-                        closeDb(db!).catch(() => { });
-                        resolve(
-                            NextResponse.json(
-                                { error: "Problem not found or not publicly available." },
-                                { status: 404 }
-                            )
-                        );
-                        return;
-                    }
+                    const userEmail = userRow.email;
 
-                    if (!problem.id || !problem.title || !problem.statement) {
-                        closeDb(db!).catch(() => { });
-                        resolve(
-                            NextResponse.json(
-                                { error: "Invalid problem data in database." },
-                                { status: 500 }
-                            )
-                        );
-                        return;
-                    }
-
-                    if (problem.deadline_at) {
-                        const deadline = new Date(problem.deadline_at.replace(" ", "T") + "Z");
-                        const now = new Date();
-
-                        if (now > deadline) {
-                            closeDb(db!).catch(() => { });
-                            resolve(
-                                NextResponse.json(
-                                    { error: "This problem's deadline has passed and is no longer accepting submissions." },
-                                    { status: 403 }
-                                )
-                            );
-                            return;
-                        }
-                    }
-
-                    if (typeof problem.time_limit_ms !== "number" || problem.time_limit_ms <= 0) {
-                        closeDb(db!).catch(() => { });
-                        resolve(
-                            NextResponse.json(
-                                { error: "Invalid time limit configuration for this problem." },
-                                { status: 500 }
-                            )
-                        );
-                        return;
-                    }
-
-                    if (typeof problem.memory_limit_kb !== "number" || problem.memory_limit_kb <= 0) {
-                        closeDb(db!).catch(() => { });
-                        resolve(
-                            NextResponse.json(
-                                { error: "Invalid memory limit configuration for this problem." },
-                                { status: 500 }
-                            )
-                        );
-                        return;
-                    }
-
-                    if (!db) {
-                        resolve(
-                            NextResponse.json(
-                                { error: "Database connection lost." },
-                                { status: 500 }
-                            )
-                        );
-                        return;
-                    }
-
-                    db.all(
+                    db!.get(
                         `
-                        SELECT id, input_data, output_data
-                        FROM testcase
-                        WHERE problem_id = ? AND is_sample = 1
-                        ORDER BY id
+                        SELECT 
+                            p.id,
+                            p.title,
+                            p.slug,
+                            p.statement,
+                            p.time_limit_ms,
+                            p.memory_limit_kb,
+                            p.created_at,
+                            p.deadline_at,
+                            p.visibility,
+                            p.setter_id,
+                            u.name as setter_name
+                        FROM problem p
+                        LEFT JOIN user u ON p.setter_id = u.id
+                        WHERE p.slug = ?
                         `,
-                        [problem.id],
-                        async (err, samples: SampleRow[]) => {
-                            if (db) await closeDb(db).catch(() => { });
-
+                        [slug],
+                        (err, problem: ProblemRow) => {
                             if (err) {
+                                closeDb(db!).catch(() => { });
                                 resolve(
                                     NextResponse.json(
-                                        { error: "Failed to retrieve sample testcases. Please try again." },
+                                        { error: "Failed to retrieve problem. Please try again." },
                                         { status: 500 }
                                     )
                                 );
                                 return;
                             }
 
-                            if (!samples) {
+                            if (!problem) {
+                                closeDb(db!).catch(() => { });
                                 resolve(
-                                    NextResponse.json({
-                                        problem,
-                                        samples: [],
-                                    })
+                                    NextResponse.json(
+                                        { error: "Problem not found." },
+                                        { status: 404 }
+                                    )
                                 );
                                 return;
                             }
 
-                            if (!Array.isArray(samples)) {
+                            if (!problem.id || !problem.title || !problem.statement) {
+                                closeDb(db!).catch(() => { });
                                 resolve(
                                     NextResponse.json(
-                                        { error: "Invalid testcase data format." },
+                                        { error: "Invalid problem data in database." },
                                         { status: 500 }
                                     )
                                 );
                                 return;
                             }
 
-                            for (const sample of samples) {
-                                if (!sample.id || typeof sample.input_data !== "string" || typeof sample.output_data !== "string") {
+                            if (problem.visibility === "private") {
+                                if (session.role === "admin" || problem.setter_id === session.userId) {
+                                    proceedWithProblem();
+                                    return;
+                                }
+
+                                db!.get(
+                                    "SELECT 1 FROM solver WHERE problem_id = ? AND email = ?",
+                                    [problem.id, userEmail],
+                                    (err, solverRow) => {
+                                        if (err) {
+                                            closeDb(db!).catch(() => { });
+                                            resolve(
+                                                NextResponse.json(
+                                                    { error: "Failed to verify access permissions." },
+                                                    { status: 500 }
+                                                )
+                                            );
+                                            return;
+                                        }
+
+                                        if (!solverRow) {
+                                            closeDb(db!).catch(() => { });
+                                            resolve(
+                                                NextResponse.json(
+                                                    { error: "You do not have permission to access this problem." },
+                                                    { status: 403 }
+                                                )
+                                            );
+                                            return;
+                                        }
+
+                                        proceedWithProblem();
+                                    }
+                                );
+                            } else {
+                                proceedWithProblem();
+                            }
+
+                            function proceedWithProblem() {
+                                if (problem.deadline_at) {
+                                    const deadline = new Date(problem.deadline_at.replace(" ", "T") + "Z");
+                                    const now = new Date();
+
+                                    if (now > deadline) {
+                                        closeDb(db!).catch(() => { });
+                                        resolve(
+                                            NextResponse.json(
+                                                { error: "This problem's deadline has passed and is no longer accepting submissions." },
+                                                { status: 403 }
+                                            )
+                                        );
+                                        return;
+                                    }
+                                }
+
+                                if (typeof problem.time_limit_ms !== "number" || problem.time_limit_ms <= 0) {
+                                    closeDb(db!).catch(() => { });
                                     resolve(
                                         NextResponse.json(
-                                            { error: "Invalid sample testcase data." },
+                                            { error: "Invalid time limit configuration for this problem." },
                                             { status: 500 }
                                         )
                                     );
                                     return;
                                 }
-                            }
 
-                            resolve(
-                                NextResponse.json({
-                                    problem,
-                                    samples,
-                                })
-                            );
+                                if (typeof problem.memory_limit_kb !== "number" || problem.memory_limit_kb <= 0) {
+                                    closeDb(db!).catch(() => { });
+                                    resolve(
+                                        NextResponse.json(
+                                            { error: "Invalid memory limit configuration for this problem." },
+                                            { status: 500 }
+                                        )
+                                    );
+                                    return;
+                                }
+
+                                if (!db) {
+                                    resolve(
+                                        NextResponse.json(
+                                            { error: "Database connection lost." },
+                                            { status: 500 }
+                                        )
+                                    );
+                                    return;
+                                }
+
+                                db.all(
+                                    `
+                                    SELECT id, input_data, output_data
+                                    FROM testcase
+                                    WHERE problem_id = ? AND is_sample = 1
+                                    ORDER BY id
+                                    `,
+                                    [problem.id],
+                                    async (err, samples: SampleRow[]) => {
+                                        if (db) await closeDb(db).catch(() => { });
+
+                                        if (err) {
+                                            resolve(
+                                                NextResponse.json(
+                                                    { error: "Failed to retrieve sample testcases. Please try again." },
+                                                    { status: 500 }
+                                                )
+                                            );
+                                            return;
+                                        }
+
+                                        if (!samples) {
+                                            resolve(
+                                                NextResponse.json({
+                                                    problem,
+                                                    samples: [],
+                                                })
+                                            );
+                                            return;
+                                        }
+
+                                        if (!Array.isArray(samples)) {
+                                            resolve(
+                                                NextResponse.json(
+                                                    { error: "Invalid testcase data format." },
+                                                    { status: 500 }
+                                                )
+                                            );
+                                            return;
+                                        }
+
+                                        for (const sample of samples) {
+                                            if (!sample.id || typeof sample.input_data !== "string" || typeof sample.output_data !== "string") {
+                                                resolve(
+                                                    NextResponse.json(
+                                                        { error: "Invalid sample testcase data." },
+                                                        { status: 500 }
+                                                    )
+                                                );
+                                                return;
+                                            }
+                                        }
+
+                                        resolve(
+                                            NextResponse.json({
+                                                problem,
+                                                samples,
+                                            })
+                                        );
+                                    }
+                                );
+                            }
                         }
                     );
                 }

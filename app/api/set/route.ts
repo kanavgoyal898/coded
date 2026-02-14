@@ -20,6 +20,7 @@ interface ProblemBody {
     memory_limit_kb?: number;
     visibility?: "public" | "private";
     deadline_at?: string | null;
+    solvers?: string[];
 }
 
 const MAX_TITLE_LENGTH = 256;
@@ -33,6 +34,9 @@ const MIN_MEMORY_LIMIT = 1;
 const MAX_MEMORY_LIMIT = 16 * 1024 * 1024;
 const MIN_WEIGHT = 0;
 const MAX_WEIGHT = 100;
+const MAX_EMAIL_LENGTH = 256;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_SOLVERS = 1000;
 
 function generateSlug(title: string): string {
     if (!title || typeof title !== "string") {
@@ -71,6 +75,31 @@ function closeDb(db: sqlite3.Database): Promise<void> {
             }
         });
     });
+}
+
+function parseEmailList(input: string): string[] {
+    if (!input || typeof input !== "string") {
+        return [];
+    }
+
+    const emails = input
+        .split(/[,;\|\n\t]|[\s]{2,}/)
+        .map((email) => email.trim().toLowerCase())
+        .filter((email) => email.length > 0);
+
+    return [...new Set(emails)];
+}
+
+function validateEmail(email: string): boolean {
+    if (!email || typeof email !== "string") {
+        return false;
+    }
+
+    if (email.length > MAX_EMAIL_LENGTH) {
+        return false;
+    }
+
+    return EMAIL_REGEX.test(email);
 }
 
 export async function POST(req: NextRequest) {
@@ -152,6 +181,7 @@ export async function POST(req: NextRequest) {
     const memory_limit_kb = problemData.memory_limit_kb;
     const visibility = problemData.visibility;
     const deadline_at = problemData.deadline_at;
+    const solvers = problemData.solvers;
 
     if (title.length === 0) {
         return NextResponse.json(
@@ -360,6 +390,52 @@ export async function POST(req: NextRequest) {
         }
     }
 
+    let validatedSolvers: string[] = [];
+    if (visibility === "private" && solvers) {
+        if (!Array.isArray(solvers)) {
+            return NextResponse.json(
+                { error: "Solvers must be an array of email addresses." },
+                { status: 422 }
+            );
+        }
+
+        if (solvers.length > MAX_SOLVERS) {
+            return NextResponse.json(
+                { error: `Maximum of ${MAX_SOLVERS} solvers allowed.` },
+                { status: 422 }
+            );
+        }
+
+        for (const email of solvers) {
+            if (typeof email !== "string") {
+                return NextResponse.json(
+                    { error: "All solver emails must be strings." },
+                    { status: 422 }
+                );
+            }
+
+            const trimmedEmail = email.trim().toLowerCase();
+
+            if (!validateEmail(trimmedEmail)) {
+                return NextResponse.json(
+                    { error: `Invalid email address: ${email}` },
+                    { status: 422 }
+                );
+            }
+
+            if (!validatedSolvers.includes(trimmedEmail)) {
+                validatedSolvers.push(trimmedEmail);
+            }
+        }
+
+        if (visibility === "private" && validatedSolvers.length === 0) {
+            return NextResponse.json(
+                { error: "Private problems must have at least one solver specified." },
+                { status: 422 }
+            );
+        }
+    }
+
     const slug = generateSlug(title);
 
     if (!slug || slug.length === 0) {
@@ -429,9 +505,11 @@ export async function POST(req: NextRequest) {
                     }
 
                     db.run(
-                        `INSERT INTO problem
+                        `
+                        INSERT INTO problem
                         (title, slug, statement, setter_id, deadline_at, time_limit_ms, memory_limit_kb, visibility)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        `,
                         [
                             title,
                             slug,
@@ -489,8 +567,8 @@ export async function POST(req: NextRequest) {
                             }
 
                             const problemId = this.lastID;
-                            let completed = 0;
-                            let failed = false;
+                            let testcaseCompleted = 0;
+                            let testcaseFailed = false;
 
                             if (!db) {
                                 resolve(
@@ -506,8 +584,8 @@ export async function POST(req: NextRequest) {
                                 const t = testcases[i];
 
                                 if (!db) {
-                                    if (!failed) {
-                                        failed = true;
+                                    if (!testcaseFailed) {
+                                        testcaseFailed = true;
                                         resolve(
                                             NextResponse.json(
                                                 { error: "Database connection lost during testcase insertion." },
@@ -519,9 +597,11 @@ export async function POST(req: NextRequest) {
                                 }
 
                                 db.run(
-                                    `INSERT INTO testcase
+                                    `
+                                    INSERT INTO testcase
                                     (problem_id, input_data, output_data, weight, is_sample)
-                                    VALUES (?, ?, ?, ?, ?)`,
+                                    VALUES (?, ?, ?, ?, ?)
+                                    `,
                                     [
                                         problemId,
                                         t.input,
@@ -530,10 +610,10 @@ export async function POST(req: NextRequest) {
                                         t.is_sample === true ? 1 : 0,
                                     ],
                                     (err) => {
-                                        if (failed) return;
+                                        if (testcaseFailed) return;
 
                                         if (err) {
-                                            failed = true;
+                                            testcaseFailed = true;
                                             closeDb(db!).catch(() => { });
                                             resolve(
                                                 NextResponse.json(
@@ -544,22 +624,81 @@ export async function POST(req: NextRequest) {
                                             return;
                                         }
 
-                                        completed++;
+                                        testcaseCompleted++;
 
-                                        if (completed === testcases.length) {
-                                            closeDb(db!).catch(() => { });
-                                            resolve(
-                                                NextResponse.json(
-                                                    {
-                                                        id: problemId,
-                                                        slug,
-                                                    },
-                                                    { status: 201 }
-                                                )
-                                            );
+                                        if (testcaseCompleted === testcases.length) {
+                                            if (visibility === "private" && validatedSolvers.length > 0) {
+                                                insertSolvers();
+                                            } else {
+                                                closeDb(db!).catch(() => { });
+                                                resolve(
+                                                    NextResponse.json(
+                                                        {
+                                                            id: problemId,
+                                                            slug,
+                                                        },
+                                                        { status: 201 }
+                                                    )
+                                                );
+                                            }
                                         }
                                     }
                                 );
+                            }
+
+                            function insertSolvers() {
+                                let solverCompleted = 0;
+                                let solverFailed = false;
+
+                                for (const email of validatedSolvers) {
+                                    if (!db) {
+                                        if (!solverFailed) {
+                                            solverFailed = true;
+                                            resolve(
+                                                NextResponse.json(
+                                                    { error: "Database connection lost during solver insertion." },
+                                                    { status: 500 }
+                                                )
+                                            );
+                                        }
+                                        return;
+                                    }
+
+                                    db.run(
+                                        `INSERT INTO solver (problem_id, email) VALUES (?, ?)`,
+                                        [problemId, email],
+                                        (err) => {
+                                            if (solverFailed) return;
+
+                                            if (err) {
+                                                solverFailed = true;
+                                                closeDb(db!).catch(() => { });
+                                                resolve(
+                                                    NextResponse.json(
+                                                        { error: "Failed to add solvers. Problem may be incomplete." },
+                                                        { status: 500 }
+                                                    )
+                                                );
+                                                return;
+                                            }
+
+                                            solverCompleted++;
+
+                                            if (solverCompleted === validatedSolvers.length) {
+                                                closeDb(db!).catch(() => { });
+                                                resolve(
+                                                    NextResponse.json(
+                                                        {
+                                                            id: problemId,
+                                                            slug,
+                                                        },
+                                                        { status: 201 }
+                                                    )
+                                                );
+                                            }
+                                        }
+                                    );
+                                }
                             }
                         }
                     );

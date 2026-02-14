@@ -57,4 +57,13 @@ CREATE TABLE IF NOT EXISTS submission (
     FOREIGN KEY (problem_id) REFERENCES problem(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS solver (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    problem_id INTEGER NOT NULL,
+    email TEXT NOT NULL COLLATE NOCASE,
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (problem_id) REFERENCES problem(id) ON DELETE CASCADE,
+    UNIQUE(problem_id, email)
+);
+
 PRAGMA foreign_keys = ON;
