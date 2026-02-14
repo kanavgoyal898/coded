@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 
 type Problem = {
   id: number;
@@ -16,6 +16,7 @@ type Problem = {
   visibility: string;
   created_at: string;
   solved: number;
+  latest_status: string | null;
 };
 
 export default function ProblemsPage() {
@@ -72,12 +73,22 @@ export default function ProblemsPage() {
       key: "solved",
       header: "",
       cellClassName: "w-8",
-      render: (problem) =>
-        problem.solved === 1 ? (
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-green-700">
-            <Check className="w-4 h-4" strokeWidth={4} />
-          </span>
-        ) : null,
+      render: (problem) => {
+        if (problem.latest_status === "accepted") {
+          return (
+            <span className="inline-flex items-center justify-center w-6 h-6 text-green-700">
+              <Check className="w-4 h-4" strokeWidth={4} />
+            </span>
+          );
+        } else if (problem.latest_status === "rejected") {
+          return (
+            <span className="inline-flex items-center justify-center w-6 h-6 text-red-700">
+              <X className="w-4 h-4" strokeWidth={4} />
+            </span>
+          );
+        }
+        return null;
+      },
     },
     {
       key: "title",

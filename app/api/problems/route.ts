@@ -17,6 +17,7 @@ interface ProblemRow {
     visibility: string;
     created_at: string;
     solved: number;
+    latest_status: string | null;
 }
 
 function openDb(): Promise<sqlite3.Database> {
@@ -113,7 +114,8 @@ export async function GET(req: NextRequest) {
                                 p.memory_limit_kb,
                                 p.visibility,
                                 p.created_at,
-                                CASE WHEN latest_sub.status = 'accepted' THEN 1 ELSE 0 END AS solved
+                                CASE WHEN latest_sub.status = 'accepted' THEN 1 ELSE 0 END AS solved,
+                                latest_sub.status AS latest_status
                             FROM problem p
                             JOIN user u ON p.setter_id = u.id
                             LEFT JOIN (
@@ -153,7 +155,8 @@ export async function GET(req: NextRequest) {
                                 p.memory_limit_kb,
                                 p.visibility,
                                 p.created_at,
-                                CASE WHEN latest_sub.status = 'accepted' THEN 1 ELSE 0 END AS solved
+                                CASE WHEN latest_sub.status = 'accepted' THEN 1 ELSE 0 END AS solved,
+                                latest_sub.status AS latest_status
                             FROM problem p
                             JOIN user u ON p.setter_id = u.id
                             LEFT JOIN solver s ON p.id = s.problem_id

@@ -350,7 +350,7 @@ export default function SubmitProblemPage() {
       <Dialog open={open} onOpenChange={(isOpen) => {
         setOpen(isOpen);
         if (!isOpen && !submissionError) {
-          router.push("/problems");
+          router.push("/submissions");
         }
       }}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
