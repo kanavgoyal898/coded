@@ -29,7 +29,7 @@ const formatDeadline = (deadline: string | null) => {
 
   return (
     <span className={isPast ? "text-red-600 font-medium" : ""}>
-      {formatLocalDateTime(deadline)}
+      {date.toLocaleDateString() + " " + date.toLocaleTimeString()}
     </span>
   );
 };
