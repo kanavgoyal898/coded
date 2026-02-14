@@ -1,5 +1,6 @@
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
 import { getLanguageLabel } from "@/lib/constants/languages";
+import { formatLocalDateTime } from "@/lib/datetime";
 
 type SubmissionSummary = {
     user_id: number;
@@ -24,7 +25,7 @@ const statusLabels: Record<string, string> = {
 type SubmissionsTableProps = {
     submissions: SubmissionSummary[];
     loading: boolean;
-    onViewSource: (sourceCode: string, submissionId: number) => void;
+    onViewSource: (sourceCode: string) => void;
 };
 
 export function SubmissionsTable({
@@ -81,7 +82,7 @@ export function SubmissionsTable({
             header: "Latest Submission",
             cellClassName: "text-sm",
             render: (submission) =>
-                new Date(submission.latest_created_at).toLocaleString(),
+                formatLocalDateTime(submission.latest_created_at),
         },
         {
             key: "source_code",
@@ -91,7 +92,7 @@ export function SubmissionsTable({
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        onViewSource(submission.source_code, submission.latest_submission_id);
+                        onViewSource(submission.source_code);
                     }}
                     className="text-blue-600 hover:text-blue-800 underline text-sm"
                 >
@@ -122,7 +123,7 @@ export function SubmissionsTable({
             <DataTable
                 data={submissions}
                 columns={columns}
-                keyExtractor={(submission) => submission.user_id}
+                keyExtractor={(submission) => submission.latest_submission_id}
                 defaultSortKey="user_name"
                 defaultSortDirection="asc"
                 pagination={{ enabled: true, rowsPerPage: 8 }}

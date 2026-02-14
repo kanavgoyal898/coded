@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
 import { Check, X } from "lucide-react";
+import { formatLocalDateTime } from "@/lib/datetime";
 
 type Problem = {
   id: number;
@@ -17,6 +18,20 @@ type Problem = {
   created_at: string;
   solved: number;
   latest_status: string | null;
+};
+
+const formatDeadline = (deadline: string | null) => {
+  if (!deadline) return "—";
+
+  const date = new Date(deadline);
+  const now = new Date();
+  const isPast = date < now;
+
+  return (
+    <span className={isPast ? "text-red-600 font-medium" : ""}>
+      {formatLocalDateTime(deadline)}
+    </span>
+  );
 };
 
 export default function ProblemsPage() {
@@ -55,19 +70,6 @@ export default function ProblemsPage() {
     fetchProblems();
   }, [router]);
 
-  const formatDeadline = (deadline: string | null) => {
-    if (!deadline) return "—";
-    const date = new Date(deadline.replace(" ", "T") + "Z");
-    const now = new Date();
-    const isPast = date < now;
-    const formatted = date.toLocaleString();
-    return (
-      <span className={isPast ? "text-red-600 font-medium" : ""}>
-        {formatted}
-      </span>
-    );
-  };
-
   const columns: ColumnDef<Problem>[] = [
     {
       key: "solved",
@@ -102,7 +104,7 @@ export default function ProblemsPage() {
     },
     {
       key: "deadline_at",
-      header: "Deadline (GMT)",
+      header: "Deadline",
       render: (problem) => formatDeadline(problem.deadline_at),
     },
     {
@@ -126,7 +128,7 @@ export default function ProblemsPage() {
       header: "Created",
       render: (problem) => (
         <span className="text-muted-foreground text-sm">
-          {new Date(problem.created_at).toLocaleDateString()}
+          {formatLocalDateTime(problem.created_at)}
         </span>
       ),
     },

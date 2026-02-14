@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
 import { getLanguageLabel } from "@/lib/constants/languages";
+import { formatLocalDateTime } from "@/lib/datetime";
 
 type Submission = {
     id: number;
@@ -88,9 +89,8 @@ export default function SubmissionsPage() {
         },
         {
             key: "created_at",
-            header: "Submitted (GMT)",
-            render: (submission) =>
-                new Date(submission.created_at.replace(" ", "T") + "Z").toLocaleString(),
+            header: "Submitted",
+            render: (submission) => formatLocalDateTime(submission.created_at),
         },
     ];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Trash2, ExternalLink, Edit, XCircle, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SubmissionsTable } from "@/app/components/SubmissionsTable";
+import { formatLocalDateTime } from "@/lib/datetime";
 
 type ProblemWithSubmissions = {
     problem_id: number;
@@ -83,47 +84,47 @@ export default function ActivityPage() {
     const [updatingVisibility, setUpdatingVisibility] = useState(false);
     const [loadingVisibilityData, setLoadingVisibilityData] = useState(false);
 
-    useEffect(() => {
-        async function fetchProblems() {
-            setLoading(true);
-            setError(null);
+    const fetchProblems = useCallback(async () => {
+        setLoading(true);
+        setError(null);
 
-            try {
-                const res = await fetch("/api/activity");
+        try {
+            const res = await fetch("/api/activity");
 
-                if (res.status === 401) {
-                    router.push("/login");
-                    return;
-                }
-
-                if (res.status === 403) {
-                    router.push("/submissions");
-                    return;
-                }
-
-                if (!res.ok) {
-                    let data: { error?: string } = {};
-                    try {
-                        data = await res.json();
-                    } catch {
-                        throw new Error("Failed to load activity data");
-                    }
-                    throw new Error(data.error || "Failed to load activity data");
-                }
-
-                const data = await res.json();
-                setProblems(data.problems || []);
-            } catch (err) {
-                setError(
-                    err instanceof Error ? err.message : "Failed to load activity data"
-                );
-            } finally {
-                setLoading(false);
+            if (res.status === 401) {
+                router.push("/login");
+                return;
             }
-        }
 
-        fetchProblems();
+            if (res.status === 403) {
+                router.push("/submissions");
+                return;
+            }
+
+            if (!res.ok) {
+                let data: { error?: string } = {};
+                try {
+                    data = await res.json();
+                } catch {
+                    throw new Error("Failed to load activity data");
+                }
+                throw new Error(data.error || "Failed to load activity data");
+            }
+
+            const data = await res.json();
+            setProblems(data.problems || []);
+        } catch (err) {
+            setError(
+                err instanceof Error ? err.message : "Failed to load activity data"
+            );
+        } finally {
+            setLoading(false);
+        }
     }, [router]);
+
+    useEffect(() => {
+        fetchProblems();
+    }, [fetchProblems]);
 
     const toggleProblem = async (problemId: number) => {
         if (expandedProblem === problemId) {
@@ -179,7 +180,7 @@ export default function ActivityPage() {
         }
     };
 
-    const openSourceCode = (sourceCode: string, submissionId: number) => {
+    const openSourceCode = (sourceCode: string) => {
         const blob = new Blob([sourceCode], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
         window.open(url, "_blank");
@@ -391,10 +392,12 @@ export default function ActivityPage() {
 
             setEditDialogOpen(false);
             setProblemToEdit(null);
+            setLoadingEditData(false);
         } catch (err) {
             setEditValidationError(
                 err instanceof Error ? err.message : "Failed to update problem"
             );
+            setLoadingEditData(false);
         } finally {
             setEditing(false);
         }
@@ -461,6 +464,8 @@ export default function ActivityPage() {
                 }));
             }
 
+            await fetchProblems();
+
             setClearSubmissionsDialogOpen(false);
             setProblemToClear(null);
         } catch (err) {
@@ -490,7 +495,7 @@ export default function ActivityPage() {
             const data = await res.json();
 
             setNewVisibility(data.problem?.visibility || "public");
-            
+
             const res_ = await fetch(`/api/activity?action=solvers&problem_id=${problem.problem_id}`);
             if (res_.ok) {
                 const solversData = await res_.json();
@@ -582,10 +587,13 @@ export default function ActivityPage() {
 
             setVisibilityDialogOpen(false);
             setProblemToUpdateVisibility(null);
+            setLoadingVisibilityData(false);
+            await fetchProblems();
         } catch (err) {
             setVisibilityValidationError(
                 err instanceof Error ? err.message : "Failed to update visibility"
             );
+            setLoadingVisibilityData(false);
         } finally {
             setUpdatingVisibility(false);
         }
@@ -641,11 +649,11 @@ export default function ActivityPage() {
                                 className="w-full px-4 py-4 flex items-center justify-between hover:bg-muted/50 transition-colors text-left cursor-pointer"
                             >
                                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <div className="flex-shrink-0">
+                                    <div className="shrink-0">
                                         {expandedProblem === problem.problem_id ? (
-                                            <ChevronDown className="h-5 w-5" />
+                                            <ChevronDown className="h-4 w-4" />
                                         ) : (
-                                            <ChevronRight className="h-5 w-5" />
+                                            <ChevronRight className="h-4 w-4" />
                                         )}
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -654,12 +662,12 @@ export default function ActivityPage() {
                                         </div>
                                         <div className="text-xs text-muted-foreground mt-1">
                                             Created{" "}
-                                            {new Date(problem.created_at).toLocaleDateString()}
+                                            {formatLocalDateTime(problem.created_at)}
                                         </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-6 text-sm flex-shrink-0 mr-2">
+                                    <div className="flex items-center gap-6 text-sm shrink-0 mr-2">
                                         <div className="text-center">
                                             <div className="font-semibold">
                                                 {problem.unique_solvers}
@@ -884,7 +892,7 @@ export default function ActivityPage() {
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="edit-deadline-input">Deadline (GMT)</Label>
+                                <Label htmlFor="edit-deadline-input">Deadline</Label>
                                 <Input
                                     id="edit-deadline-input"
                                     type="datetime-local"

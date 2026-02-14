@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
 import { Plus, Trash } from "lucide-react";
+import { formatLocalDateTime } from "@/lib/datetime";
 
 type SetterEntry = {
     email: string;
@@ -407,12 +408,7 @@ export default function AdminSettersPage() {
             key: "added_at",
             header: "Added",
             cellClassName: "text-sm text-muted-foreground",
-            render: (setter) =>
-                new Date(setter.added_at).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                }),
+            render: (setter) => formatLocalDateTime(setter.added_at),
         },
         {
             key: "action",

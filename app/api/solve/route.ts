@@ -44,7 +44,7 @@ function checkProblemAccess(problemId: number, userId: number, userEmail: string
                     }
 
                     if (row.deadline_at) {
-                        const deadline = new Date(row.deadline_at.replace(" ", "T") + "Z");
+                        const deadline = new Date(row.deadline_at);
                         const now = new Date();
 
                         if (now > deadline) {

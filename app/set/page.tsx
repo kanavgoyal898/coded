@@ -231,7 +231,10 @@ export default function AddProblemPage() {
           statement: statement.trim(),
           time_limit_ms: parseInt(timeLimit),
           memory_limit_kb: parseInt(memoryLimit),
-          deadline_at: deadline && deadline.trim().length > 0 ? deadline.trim() : null,
+          deadline_at:
+            deadline && deadline.trim().length > 0
+              ? new Date(deadline).toISOString()
+              : null,
           visibility: visibility,
           solvers: solverEmails.length > 0 ? solverEmails : undefined,
           testcases: testcases.map(tc => ({
@@ -381,7 +384,7 @@ export default function AddProblemPage() {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="deadline-input">Deadline (GMT)</Label>
+        <Label htmlFor="deadline-input">Deadline</Label>
         <Input
           id="deadline-input"
           type="datetime-local"

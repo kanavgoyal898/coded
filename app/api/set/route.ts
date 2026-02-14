@@ -77,19 +77,6 @@ function closeDb(db: sqlite3.Database): Promise<void> {
     });
 }
 
-function parseEmailList(input: string): string[] {
-    if (!input || typeof input !== "string") {
-        return [];
-    }
-
-    const emails = input
-        .split(/[,;\|\n\t]|[\s]{2,}/)
-        .map((email) => email.trim().toLowerCase())
-        .filter((email) => email.length > 0);
-
-    return [...new Set(emails)];
-}
-
 function validateEmail(email: string): boolean {
     if (!email || typeof email !== "string") {
         return false;
@@ -390,7 +377,7 @@ export async function POST(req: NextRequest) {
         }
     }
 
-    let validatedSolvers: string[] = [];
+    const validatedSolvers: string[] = [];
     if (visibility === "private" && solvers) {
         if (!Array.isArray(solvers)) {
             return NextResponse.json(

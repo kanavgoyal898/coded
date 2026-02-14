@@ -250,7 +250,7 @@ export async function GET(
 
                             function proceedWithProblem() {
                                 if (problem.deadline_at) {
-                                    const deadline = new Date(problem.deadline_at.replace(" ", "T") + "Z");
+                                    const deadline = new Date(problem.deadline_at);
                                     const now = new Date();
 
                                     if (now > deadline) {

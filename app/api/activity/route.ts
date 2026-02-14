@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import path from "path";
 import { getSessionUserFromRequest } from "@/lib/auth";
+import { normalizeToUTCISO } from "@/lib/datetime";
 
 export const runtime = "nodejs";
 
@@ -67,16 +68,6 @@ interface UpdateProblemBody {
     memory_limit_kb?: number;
     visibility?: "public" | "private";
     deadline_at?: string | null;
-}
-
-interface ClearSubmissionsBody {
-    problem_id: number;
-}
-
-interface UpdateVisibilityBody {
-    problem_id: number;
-    visibility: "public" | "private";
-    solvers?: string[];
 }
 
 function generateSlug(title: string): string {
@@ -392,9 +383,7 @@ export async function GET(req: NextRequest) {
 
                                                 const normalizedProblem: ProblemDetails & { deadline_at: string | null } = {
                                                     ...problemDetails,
-                                                    deadline_at: problemDetails.deadline_at
-                                                        ? new Date(problemDetails.deadline_at.replace(" ", "T") + "Z").toISOString()
-                                                        : null,
+                                                    deadline_at: normalizeToUTCISO(problemDetails.deadline_at),
                                                 };
 
                                                 resolve(NextResponse.json({
@@ -1128,7 +1117,7 @@ export async function PATCH(req: NextRequest) {
                 );
             }
 
-            let validatedSolvers: string[] = [];
+            const validatedSolvers: string[] = [];
             if (visibility === "private") {
                 if (!solvers || !Array.isArray(solvers)) {
                     if (db) await closeDb(db);

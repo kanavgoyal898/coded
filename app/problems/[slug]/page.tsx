@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { formatLocalDateTime } from "@/lib/datetime";
 
 type Problem = {
   id: number;
@@ -274,7 +275,7 @@ export default function SubmitProblemPage() {
           ) : null}
           {problem.time_limit_ms} ms • {Math.floor(problem.memory_limit_kb / 1024)} MB
           {problem.deadline_at ? (
-            <> • Deadline: {new Date(problem.deadline_at).toLocaleString()} GMT</>
+            <> • Deadline: {formatLocalDateTime(problem.deadline_at)}</>
           ) : null}
         </p>
       </div>
