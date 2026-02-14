@@ -2,16 +2,16 @@
 
 import { useState, Suspense } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { SideBar } from "@/app/components/SideBar";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const MIN_PASSWORD_LENGTH = 8;
 
 function SignupForm() {
-    const router = useRouter();
+    const { refresh } = useCurrentUser();
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
@@ -54,9 +54,9 @@ function SignupForm() {
                 setError(data.error || "Sign up failed. Please try again.");
                 return;
             }
-
-            router.push("/submissions");
-            router.refresh();
+            
+            await refresh();
+            window.location.href = "/problems";
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : "Something went wrong. Please try again."

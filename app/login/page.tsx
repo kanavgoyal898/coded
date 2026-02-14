@@ -7,11 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { SideBar } from "@/app/components/SideBar";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const from = searchParams.get("from") || "/submissions";
+    
+    const { refresh } = useCurrentUser();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -42,8 +45,8 @@ function LoginForm() {
                 return;
             }
 
-            router.push(from);
-            router.refresh();
+            await refresh();
+            window.location.href = from;
         } catch (err) {
             setError(
                 err instanceof Error ? err.message : "Something went wrong. Please try again."
