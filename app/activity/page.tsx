@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, Trash2, ExternalLink, Edit } from "lucide-react";
+import { ChevronDown, ChevronRight, Trash2, ExternalLink, Edit, XCircle, Eye } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SubmissionsTable } from "@/app/components/SubmissionsTable";
 
 type ProblemWithSubmissions = {
@@ -68,6 +69,19 @@ export default function ActivityPage() {
     const [editValidationError, setEditValidationError] = useState<string | null>(null);
     const [editing, setEditing] = useState(false);
     const [loadingEditData, setLoadingEditData] = useState(false);
+
+    const [clearSubmissionsDialogOpen, setClearSubmissionsDialogOpen] = useState(false);
+    const [problemToClear, setProblemToClear] = useState<ProblemWithSubmissions | null>(null);
+    const [clearing, setClearing] = useState(false);
+
+    const [visibilityDialogOpen, setVisibilityDialogOpen] = useState(false);
+    const [problemToUpdateVisibility, setProblemToUpdateVisibility] = useState<ProblemWithSubmissions | null>(null);
+    const [newVisibility, setNewVisibility] = useState<"public" | "private">("public");
+    const [solverEmails, setSolverEmails] = useState("");
+    const [currentSolvers, setCurrentSolvers] = useState<string[]>([]);
+    const [visibilityValidationError, setVisibilityValidationError] = useState<string | null>(null);
+    const [updatingVisibility, setUpdatingVisibility] = useState(false);
+    const [loadingVisibilityData, setLoadingVisibilityData] = useState(false);
 
     useEffect(() => {
         async function fetchProblems() {
@@ -386,6 +400,197 @@ export default function ActivityPage() {
         }
     };
 
+    const handleClearSubmissionsClick = (
+        problem: ProblemWithSubmissions,
+        e: React.MouseEvent
+    ) => {
+        e.stopPropagation();
+        setProblemToClear(problem);
+        setClearSubmissionsDialogOpen(true);
+    };
+
+    const confirmClearSubmissions = async () => {
+        if (!problemToClear) return;
+
+        setClearing(true);
+
+        try {
+            const res = await fetch("/api/activity", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({
+                    action: "clear_submissions",
+                    problem_id: problemToClear.problem_id,
+                }),
+            });
+
+            if (res.status === 401) {
+                router.push("/login");
+                return;
+            }
+
+            if (res.status === 403) {
+                setError("You don't have permission to clear submissions for this problem.");
+                setClearSubmissionsDialogOpen(false);
+                return;
+            }
+
+            if (!res.ok) {
+                let data: { error?: string } = {};
+                try {
+                    data = await res.json();
+                } catch {
+                    throw new Error("Failed to clear submissions");
+                }
+                throw new Error(data.error || "Failed to clear submissions");
+            }
+
+            setProblems((prev) =>
+                prev.map((p) =>
+                    p.problem_id === problemToClear.problem_id
+                        ? { ...p, total_submissions: 0, unique_solvers: 0 }
+                        : p
+                )
+            );
+
+            if (submissions[problemToClear.problem_id]) {
+                setSubmissions((prev) => ({
+                    ...prev,
+                    [problemToClear.problem_id]: [],
+                }));
+            }
+
+            setClearSubmissionsDialogOpen(false);
+            setProblemToClear(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to clear submissions");
+            setClearSubmissionsDialogOpen(false);
+        } finally {
+            setClearing(false);
+        }
+    };
+
+    const handleVisibilityClick = async (
+        problem: ProblemWithSubmissions,
+        e: React.MouseEvent
+    ) => {
+        e.stopPropagation();
+        setProblemToUpdateVisibility(problem);
+        setLoadingVisibilityData(true);
+        setVisibilityDialogOpen(true);
+
+        try {
+            const res = await fetch(`/api/activity?problem_id=${problem.problem_id}`);
+
+            if (!res.ok) {
+                throw new Error("Failed to load problem details");
+            }
+
+            const data = await res.json();
+
+            setNewVisibility(data.problem?.visibility || "public");
+            
+            const res_ = await fetch(`/api/activity?action=solvers&problem_id=${problem.problem_id}`);
+            if (res_.ok) {
+                const solversData = await res_.json();
+                const solversList = solversData.solvers || [];
+                setCurrentSolvers(solversList);
+                setSolverEmails(solversList.join("\n"));
+            }
+        } catch (err) {
+            setVisibilityValidationError(
+                err instanceof Error ? err.message : "Failed to load problem"
+            );
+        } finally {
+            setLoadingVisibilityData(false);
+        }
+    };
+
+    const parseEmailList = (input: string): string[] => {
+        if (!input || input.trim().length === 0) {
+            return [];
+        }
+
+        const emails = input
+            .split(/[,;\|\n\t]|[\s]{2,}/)
+            .map((email) => email.trim())
+            .filter((email) => email.length > 0);
+
+        return [...new Set(emails)];
+    };
+
+    const validateVisibilityForm = (): string | null => {
+        if (newVisibility === "private") {
+            const emails = parseEmailList(solverEmails);
+            if (emails.length === 0) {
+                return "Private problems must have at least one solver email specified.";
+            }
+        }
+
+        return null;
+    };
+
+    const submitVisibilityUpdate = async () => {
+        if (!problemToUpdateVisibility) return;
+
+        const validation = validateVisibilityForm();
+        if (validation) {
+            setVisibilityValidationError(validation);
+            return;
+        }
+
+        setUpdatingVisibility(true);
+        setVisibilityValidationError(null);
+
+        try {
+            const solversList = newVisibility === "private" ? parseEmailList(solverEmails) : [];
+
+            const res = await fetch("/api/activity", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "same-origin",
+                body: JSON.stringify({
+                    action: "update_visibility",
+                    problem_id: problemToUpdateVisibility.problem_id,
+                    visibility: newVisibility,
+                    solvers: solversList,
+                }),
+            });
+
+            if (res.status === 401) {
+                router.push("/login");
+                return;
+            }
+
+            if (res.status === 403) {
+                setVisibilityValidationError(
+                    "You don't have permission to update this problem."
+                );
+                return;
+            }
+
+            if (!res.ok) {
+                let data: { error?: string } = {};
+                try {
+                    data = await res.json();
+                } catch {
+                    throw new Error("Failed to update visibility");
+                }
+                throw new Error(data.error || "Failed to update visibility");
+            }
+
+            setVisibilityDialogOpen(false);
+            setProblemToUpdateVisibility(null);
+        } catch (err) {
+            setVisibilityValidationError(
+                err instanceof Error ? err.message : "Failed to update visibility"
+            );
+        } finally {
+            setUpdatingVisibility(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="max-w-4xl mx-auto px-4 py-8 space-y-4">
@@ -492,8 +697,22 @@ export default function ActivityPage() {
                                         <Edit className="h-4 w-4" />
                                     </button>
                                     <button
+                                        onClick={(e) => handleVisibilityClick(problem, e)}
+                                        className="p-2 hover:bg-muted rounded-md transition-colors"
+                                        title="Update visibility"
+                                    >
+                                        <Eye className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                        onClick={(e) => handleClearSubmissionsClick(problem, e)}
+                                        className="p-2 hover:bg-muted rounded-md transition-colors"
+                                        title="Clear all submissions"
+                                    >
+                                        <XCircle className="h-4 w-4" />
+                                    </button>
+                                    <button
                                         onClick={(e) => handleDeleteClick(problem, e)}
-                                        className="p-2 hover:bg-red-50 text-red-600 rounded-md transition-colors"
+                                        className="p-2 hover:bg-red-50 text-red-700 rounded-md transition-colors"
                                         title="Delete problem"
                                     >
                                         <Trash2 className="h-4 w-4" />
@@ -538,6 +757,33 @@ export default function ActivityPage() {
                             disabled={deleting}
                         >
                             {deleting ? "Deleting..." : "Delete Problem"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Clear Submissions Dialog */}
+            <Dialog open={clearSubmissionsDialogOpen} onOpenChange={setClearSubmissionsDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Clear All Submissions</DialogTitle>
+                        <DialogDescription>
+                            Are you sure you want to clear all submissions for {problemToClear?.problem_title}?
+                            This will permanently delete all user submissions for this problem. This action cannot be undone.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline" disabled={clearing}>
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button
+                            variant="destructive"
+                            onClick={confirmClearSubmissions}
+                            disabled={clearing}
+                        >
+                            {clearing ? "Clearing..." : "Clear All Submissions"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -661,6 +907,85 @@ export default function ActivityPage() {
                         </DialogClose>
                         <Button onClick={submitEdit} disabled={editing || loadingEditData}>
                             {editing ? "Saving..." : "Save Changes"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Visibility Dialog */}
+            <Dialog open={visibilityDialogOpen} onOpenChange={setVisibilityDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>Update Problem Visibility</DialogTitle>
+                    </DialogHeader>
+
+                    {loadingVisibilityData ? (
+                        <div className="py-8 text-center text-muted-foreground">
+                            Loading visibility settings...
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {visibilityValidationError && (
+                                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
+                                    {visibilityValidationError}
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <Label htmlFor="visibility-select">Visibility</Label>
+                                <Select
+                                    value={newVisibility}
+                                    onValueChange={(value: "public" | "private") => {
+                                        setNewVisibility(value);
+                                        setVisibilityValidationError(null);
+                                    }}
+                                    disabled={updatingVisibility}
+                                >
+                                    <SelectTrigger id="visibility-select">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="public">Public - Visible to all users</SelectItem>
+                                        <SelectItem value="private">Private - Visible only to specified users</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {newVisibility === "private" && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="solvers-input">Solver Emails</Label>
+                                    <Textarea
+                                        id="solvers-input"
+                                        className="min-h-32"
+                                        value={solverEmails}
+                                        onChange={(e) => {
+                                            setSolverEmails(e.target.value);
+                                            setVisibilityValidationError(null);
+                                        }}
+                                        disabled={updatingVisibility}
+                                        placeholder="user@example.com (one per line)"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        {parseEmailList(solverEmails).length} email(s) specified
+                                    </p>
+                                    {currentSolvers.length > 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Currently: {currentSolvers.length} solver(s)
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    <DialogFooter className="gap-2">
+                        <DialogClose asChild>
+                            <Button variant="outline" disabled={updatingVisibility || loadingVisibilityData}>
+                                Cancel
+                            </Button>
+                        </DialogClose>
+                        <Button onClick={submitVisibilityUpdate} disabled={updatingVisibility || loadingVisibilityData}>
+                            {updatingVisibility ? "Updating..." : "Update Visibility"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

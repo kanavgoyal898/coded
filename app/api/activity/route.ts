@@ -11,6 +11,9 @@ const MIN_TIME_LIMIT = 1;
 const MAX_TIME_LIMIT = 16 * 1024;
 const MIN_MEMORY_LIMIT = 1;
 const MAX_MEMORY_LIMIT = 16 * 1024 * 1024;
+const MAX_EMAIL_LENGTH = 256;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_SOLVERS = 1000;
 
 interface ProblemWithSubmissions {
     problem_id: number;
@@ -66,6 +69,16 @@ interface UpdateProblemBody {
     deadline_at?: string | null;
 }
 
+interface ClearSubmissionsBody {
+    problem_id: number;
+}
+
+interface UpdateVisibilityBody {
+    problem_id: number;
+    visibility: "public" | "private";
+    solvers?: string[];
+}
+
 function generateSlug(title: string): string {
     if (!title || typeof title !== "string") {
         return "";
@@ -106,6 +119,18 @@ function closeDb(db: sqlite3.Database): Promise<void> {
     });
 }
 
+function validateEmail(email: string): boolean {
+    if (!email || typeof email !== "string") {
+        return false;
+    }
+
+    if (email.length > MAX_EMAIL_LENGTH) {
+        return false;
+    }
+
+    return EMAIL_REGEX.test(email);
+}
+
 export async function GET(req: NextRequest) {
     if (!req) {
         return NextResponse.json(
@@ -139,11 +164,84 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const problemId = searchParams.get("problem_id");
+    const action = searchParams.get("action");
 
     let db: sqlite3.Database | null = null;
 
     try {
         db = await openDb();
+
+        if (action === "solvers" && problemId) {
+            const parsedProblemId = parseInt(problemId);
+            if (isNaN(parsedProblemId)) {
+                if (db) await closeDb(db);
+                return NextResponse.json(
+                    { error: "Invalid problem ID." },
+                    { status: 400 }
+                );
+            }
+
+            return await new Promise<NextResponse>((resolve) => {
+                if (!db) {
+                    resolve(
+                        NextResponse.json(
+                            { error: "Database initialization failed." },
+                            { status: 500 }
+                        )
+                    );
+                    return;
+                }
+
+                db.get(
+                    "SELECT setter_id FROM problem WHERE id = ?",
+                    [parsedProblemId],
+                    (err, problem: { setter_id: number } | undefined) => {
+                        if (err || !problem) {
+                            closeDb(db!).catch(() => { });
+                            resolve(
+                                NextResponse.json(
+                                    { error: "Problem not found." },
+                                    { status: 404 }
+                                )
+                            );
+                            return;
+                        }
+
+                        if (problem.setter_id !== session.userId && session.role !== "admin") {
+                            closeDb(db!).catch(() => { });
+                            resolve(
+                                NextResponse.json(
+                                    { error: "You can only view solvers for your own problems." },
+                                    { status: 403 }
+                                )
+                            );
+                            return;
+                        }
+
+                        db!.all(
+                            "SELECT email FROM solver WHERE problem_id = ? ORDER BY email ASC",
+                            [parsedProblemId],
+                            async (err, rows: { email: string }[]) => {
+                                if (db) await closeDb(db);
+
+                                if (err) {
+                                    resolve(
+                                        NextResponse.json(
+                                            { error: "Failed to fetch solvers." },
+                                            { status: 500 }
+                                        )
+                                    );
+                                    return;
+                                }
+
+                                const solvers = (rows || []).map(row => row.email);
+                                resolve(NextResponse.json({ solvers }));
+                            }
+                        );
+                    }
+                );
+            });
+        }
 
         if (problemId) {
             const parsedProblemId = parseInt(problemId);
@@ -858,6 +956,359 @@ export async function DELETE(req: NextRequest) {
                 }
             );
         });
+    } catch (error) {
+        if (db) await closeDb(db).catch(() => { });
+
+        const errorMessage = error instanceof Error && error.message === "Database connection failed"
+            ? "Database service unavailable"
+            : "Database error occurred";
+
+        return NextResponse.json(
+            { error: errorMessage + ". Please try again later." },
+            { status: 503 }
+        );
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    if (!req) {
+        return NextResponse.json(
+            { error: "Invalid request." },
+            { status: 400 }
+        );
+    }
+
+    const session = getSessionUserFromRequest(req);
+
+    if (!session) {
+        return NextResponse.json(
+            { error: "Authentication required. Please log in to continue." },
+            { status: 401 }
+        );
+    }
+
+    if (!session.role || (session.role !== "setter" && session.role !== "admin")) {
+        return NextResponse.json(
+            { error: "Insufficient permissions. Setter or admin role required." },
+            { status: 403 }
+        );
+    }
+
+    if (!session.userId || typeof session.userId !== "number" || session.userId <= 0) {
+        return NextResponse.json(
+            { error: "Invalid session data. Please log in again." },
+            { status: 401 }
+        );
+    }
+
+    let body: unknown;
+
+    try {
+        body = await req.json();
+    } catch {
+        return NextResponse.json(
+            { error: "Invalid request body. Expected valid JSON." },
+            { status: 400 }
+        );
+    }
+
+    if (!body || typeof body !== "object") {
+        return NextResponse.json(
+            { error: "Invalid request format. Expected an object." },
+            { status: 400 }
+        );
+    }
+
+    const data = body as { action?: string; problem_id?: number; visibility?: string; solvers?: string[] };
+
+    if (!data.action || typeof data.action !== "string") {
+        return NextResponse.json(
+            { error: "Action is required and must be a string." },
+            { status: 422 }
+        );
+    }
+
+    if (!data.problem_id || typeof data.problem_id !== "number") {
+        return NextResponse.json(
+            { error: "Problem ID is required and must be a number." },
+            { status: 422 }
+        );
+    }
+
+    const { action, problem_id } = data;
+
+    let db: sqlite3.Database | null = null;
+
+    try {
+        db = await openDb(false);
+
+        if (action === "clear_submissions") {
+            return await new Promise<NextResponse>((resolve) => {
+                if (!db) {
+                    resolve(
+                        NextResponse.json(
+                            { error: "Database initialization failed." },
+                            { status: 500 }
+                        )
+                    );
+                    return;
+                }
+
+                db.get(
+                    "SELECT setter_id FROM problem WHERE id = ?",
+                    [problem_id],
+                    (err, problem: { setter_id: number } | undefined) => {
+                        if (err || !problem) {
+                            closeDb(db!).catch(() => { });
+                            resolve(
+                                NextResponse.json(
+                                    { error: "Problem not found." },
+                                    { status: 404 }
+                                )
+                            );
+                            return;
+                        }
+
+                        if (problem.setter_id !== session.userId && session.role !== "admin") {
+                            closeDb(db!).catch(() => { });
+                            resolve(
+                                NextResponse.json(
+                                    { error: "You can only clear submissions for your own problems." },
+                                    { status: 403 }
+                                )
+                            );
+                            return;
+                        }
+
+                        db!.run(
+                            "DELETE FROM submission WHERE problem_id = ?",
+                            [problem_id],
+                            async (err) => {
+                                if (db) await closeDb(db);
+
+                                if (err) {
+                                    resolve(
+                                        NextResponse.json(
+                                            { error: "Failed to clear submissions." },
+                                            { status: 500 }
+                                        )
+                                    );
+                                    return;
+                                }
+
+                                resolve(
+                                    NextResponse.json(
+                                        { message: "All submissions cleared successfully." },
+                                        { status: 200 }
+                                    )
+                                );
+                            }
+                        );
+                    }
+                );
+            });
+        }
+
+        if (action === "update_visibility") {
+            const { visibility, solvers } = data;
+
+            if (!visibility || typeof visibility !== "string") {
+                if (db) await closeDb(db);
+                return NextResponse.json(
+                    { error: "Visibility is required and must be a string." },
+                    { status: 422 }
+                );
+            }
+
+            if (visibility !== "public" && visibility !== "private") {
+                if (db) await closeDb(db);
+                return NextResponse.json(
+                    { error: "Visibility must be either 'public' or 'private'." },
+                    { status: 422 }
+                );
+            }
+
+            let validatedSolvers: string[] = [];
+            if (visibility === "private") {
+                if (!solvers || !Array.isArray(solvers)) {
+                    if (db) await closeDb(db);
+                    return NextResponse.json(
+                        { error: "Solvers must be an array of email addresses for private problems." },
+                        { status: 422 }
+                    );
+                }
+
+                if (solvers.length === 0) {
+                    if (db) await closeDb(db);
+                    return NextResponse.json(
+                        { error: "Private problems must have at least one solver specified." },
+                        { status: 422 }
+                    );
+                }
+
+                if (solvers.length > MAX_SOLVERS) {
+                    if (db) await closeDb(db);
+                    return NextResponse.json(
+                        { error: `Maximum of ${MAX_SOLVERS} solvers allowed.` },
+                        { status: 422 }
+                    );
+                }
+
+                for (const email of solvers) {
+                    if (typeof email !== "string") {
+                        if (db) await closeDb(db);
+                        return NextResponse.json(
+                            { error: "All solver emails must be strings." },
+                            { status: 422 }
+                        );
+                    }
+
+                    const trimmedEmail = email.trim().toLowerCase();
+
+                    if (!validateEmail(trimmedEmail)) {
+                        if (db) await closeDb(db);
+                        return NextResponse.json(
+                            { error: `Invalid email address: ${email}` },
+                            { status: 422 }
+                        );
+                    }
+
+                    if (!validatedSolvers.includes(trimmedEmail)) {
+                        validatedSolvers.push(trimmedEmail);
+                    }
+                }
+            }
+
+            return await new Promise<NextResponse>((resolve) => {
+                if (!db) {
+                    resolve(
+                        NextResponse.json(
+                            { error: "Database initialization failed." },
+                            { status: 500 }
+                        )
+                    );
+                    return;
+                }
+
+                db.get(
+                    "SELECT setter_id FROM problem WHERE id = ?",
+                    [problem_id],
+                    (err, problem: { setter_id: number } | undefined) => {
+                        if (err || !problem) {
+                            closeDb(db!).catch(() => { });
+                            resolve(
+                                NextResponse.json(
+                                    { error: "Problem not found." },
+                                    { status: 404 }
+                                )
+                            );
+                            return;
+                        }
+
+                        if (problem.setter_id !== session.userId && session.role !== "admin") {
+                            closeDb(db!).catch(() => { });
+                            resolve(
+                                NextResponse.json(
+                                    { error: "You can only update visibility for your own problems." },
+                                    { status: 403 }
+                                )
+                            );
+                            return;
+                        }
+
+                        db!.run(
+                            "UPDATE problem SET visibility = ? WHERE id = ?",
+                            [visibility, problem_id],
+                            (err) => {
+                                if (err) {
+                                    closeDb(db!).catch(() => { });
+                                    resolve(
+                                        NextResponse.json(
+                                            { error: "Failed to update visibility." },
+                                            { status: 500 }
+                                        )
+                                    );
+                                    return;
+                                }
+
+                                db!.run(
+                                    "DELETE FROM solver WHERE problem_id = ?",
+                                    [problem_id],
+                                    (err) => {
+                                        if (err) {
+                                            closeDb(db!).catch(() => { });
+                                            resolve(
+                                                NextResponse.json(
+                                                    { error: "Failed to update solver list." },
+                                                    { status: 500 }
+                                                )
+                                            );
+                                            return;
+                                        }
+
+                                        if (visibility === "private" && validatedSolvers.length > 0) {
+                                            let inserted = 0;
+                                            let failed = false;
+
+                                            for (const email of validatedSolvers) {
+                                                if (failed) break;
+
+                                                db!.run(
+                                                    "INSERT INTO solver (problem_id, email) VALUES (?, ?)",
+                                                    [problem_id, email],
+                                                    (err) => {
+                                                        if (failed) return;
+
+                                                        if (err) {
+                                                            failed = true;
+                                                            closeDb(db!).catch(() => { });
+                                                            resolve(
+                                                                NextResponse.json(
+                                                                    { error: "Failed to add solvers." },
+                                                                    { status: 500 }
+                                                                )
+                                                            );
+                                                            return;
+                                                        }
+
+                                                        inserted++;
+
+                                                        if (inserted === validatedSolvers.length) {
+                                                            closeDb(db!).catch(() => { });
+                                                            resolve(
+                                                                NextResponse.json(
+                                                                    { message: "Visibility updated successfully." },
+                                                                    { status: 200 }
+                                                                )
+                                                            );
+                                                        }
+                                                    }
+                                                );
+                                            }
+                                        } else {
+                                            closeDb(db!).catch(() => { });
+                                            resolve(
+                                                NextResponse.json(
+                                                    { message: "Visibility updated successfully." },
+                                                    { status: 200 }
+                                                )
+                                            );
+                                        }
+                                    }
+                                );
+                            }
+                        );
+                    }
+                );
+            });
+        }
+
+        if (db) await closeDb(db);
+        return NextResponse.json(
+            { error: "Invalid action specified." },
+            { status: 422 }
+        );
+
     } catch (error) {
         if (db) await closeDb(db).catch(() => { });
 
