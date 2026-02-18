@@ -4,8 +4,9 @@ import { getSessionUserFromRequest } from "@/lib/auth.edge";
 const PUBLIC_PATHS = ["/login", "/signup"];
 const AUTH_PATHS = ["/problems", "/submissions"];
 const SETTER_PATHS = ["/set", "/activity"];
+const ADMIN_PATHS = ["/admin"];
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
     if (
@@ -52,6 +53,18 @@ export function proxy(req: NextRequest) {
             return NextResponse.redirect(loginUrl);
         }
         if (session.role !== "setter" && session.role !== "admin") {
+            return NextResponse.redirect(new URL("/problems", req.url));
+        }
+        return NextResponse.next();
+    }
+
+    if (ADMIN_PATHS.some((p) => pathname.startsWith(p))) {
+        if (!session) {
+            const loginUrl = new URL("/login", req.url);
+            loginUrl.searchParams.set("from", pathname);
+            return NextResponse.redirect(loginUrl);
+        }
+        if (session.role !== "admin") {
             return NextResponse.redirect(new URL("/problems", req.url));
         }
         return NextResponse.next();
