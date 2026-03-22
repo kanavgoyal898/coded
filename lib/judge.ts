@@ -17,7 +17,7 @@ interface JudgeResult {
     compile_log?: string;
     runtime_log?: string;
     execution_time_ms?: number;
-    submission_id?: number;
+    submission_id: number;
 }
 
 interface Testcase {
@@ -48,7 +48,9 @@ async function compileCode(lang: string, code: string): Promise<CompileResult> {
     }
 
     if (Buffer.byteLength(code, "utf8") > MAX_CODE_SIZE) {
-        return { error: `Source code exceeds maximum size of ${MAX_CODE_SIZE} bytes` };
+        return {
+            error: `Source code exceeds maximum size of ${MAX_CODE_SIZE} bytes`,
+        };
     }
 
     try {
@@ -62,12 +64,13 @@ async function compileCode(lang: string, code: string): Promise<CompileResult> {
             "",
             256,
             0.5,
-            10000
+            10000,
         );
 
         return { log: result };
     } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : "Unknown compilation error";
+        const errorMsg =
+            error instanceof Error ? error.message : "Unknown compilation error";
         return { error: errorMsg };
     }
 }
@@ -75,7 +78,7 @@ async function compileCode(lang: string, code: string): Promise<CompileResult> {
 async function runCode(
     lang: string,
     code: string,
-    input: string
+    input: string,
 ): Promise<string> {
     if (!lang || typeof lang !== "string" || lang.trim().length === 0) {
         throw new Error("Language must be specified");
@@ -95,38 +98,66 @@ async function runCode(
     }
 
     if (Buffer.byteLength(input, "utf8") > MAX_TESTCASE_INPUT_SIZE) {
-        throw new Error(`Testcase input exceeds maximum size of ${MAX_TESTCASE_INPUT_SIZE} bytes`);
-    }
-
-    try {
-        const encodedCode = Buffer.from(code).toString("base64");
-        const uuid = randomUUID().replace(/-/g, "");
-        const tempFile = `/tmp/judge_${uuid}`;
-
-        return await runContainer(
-            config.dockerImage,
-            config.getRunCommand(encodedCode, tempFile),
-            input,
-            256,
-            0.5,
-            5000
+        throw new Error(
+            `Testcase input exceeds maximum size of ${MAX_TESTCASE_INPUT_SIZE} bytes`,
         );
-    } catch (error) {
-        throw error;
     }
+
+    const encodedCode = Buffer.from(code).toString("base64");
+    const uuid = randomUUID().replace(/-/g, "");
+    const tempFile = `/tmp/judge_${uuid}`;
+
+    return await runContainer(
+        config.dockerImage,
+        config.getRunCommand(encodedCode, tempFile),
+        input,
+        256,
+        0.5,
+        5000,
+    );
+}
+
+function finaliseSubmission(
+    db: sqlite3.Database,
+    submissionId: number,
+    status: string,
+    score: number,
+    compileLog: string | null,
+    runtimeLog: string | null,
+    executionTimeMs: number,
+): Promise<void> {
+    return new Promise((resolve, reject) => {
+        db.run(
+            `UPDATE submission
+             SET status = ?, score = ?, compile_log = ?, runtime_log = ?,
+                 execution_time_ms = ?, finished_at = datetime('now')
+             WHERE id = ?`,
+            [status, score, compileLog, runtimeLog, executionTimeMs, submissionId],
+            (err) => {
+                if (err) reject(err);
+                else resolve();
+            },
+        );
+    });
 }
 
 export async function judge(
     language: string,
     code: string,
     problemId: number,
-    userId: number = 1
+    userId: number,
+    submissionId: number,
 ): Promise<JudgeResult> {
-    if (!language || typeof language !== "string" || language.trim().length === 0) {
+    if (
+        !language ||
+        typeof language !== "string" ||
+        language.trim().length === 0
+    ) {
         return {
             score: 0,
             total: 0,
             status: "rejected",
+            submission_id: submissionId,
             runtime_log: "Language must be specified",
         };
     }
@@ -136,6 +167,7 @@ export async function judge(
             score: 0,
             total: 0,
             status: "rejected",
+            submission_id: submissionId,
             runtime_log: `Unsupported language: ${language}`,
         };
     }
@@ -145,6 +177,7 @@ export async function judge(
             score: 0,
             total: 0,
             status: "rejected",
+            submission_id: submissionId,
             runtime_log: "Source code cannot be empty",
         };
     }
@@ -154,24 +187,37 @@ export async function judge(
             score: 0,
             total: 0,
             status: "rejected",
+            submission_id: submissionId,
             runtime_log: `Source code exceeds maximum size of ${MAX_CODE_SIZE} bytes`,
         };
     }
 
-    if (!problemId || typeof problemId !== "number" || problemId < MIN_PROBLEM_ID || !Number.isInteger(problemId)) {
+    if (
+        !problemId ||
+        typeof problemId !== "number" ||
+        problemId < MIN_PROBLEM_ID ||
+        !Number.isInteger(problemId)
+    ) {
         return {
             score: 0,
             total: 0,
             status: "rejected",
+            submission_id: submissionId,
             runtime_log: "Invalid problem ID",
         };
     }
 
-    if (!userId || typeof userId !== "number" || userId < MIN_USER_ID || !Number.isInteger(userId)) {
+    if (
+        !userId ||
+        typeof userId !== "number" ||
+        userId < MIN_USER_ID ||
+        !Number.isInteger(userId)
+    ) {
         return {
             score: 0,
             total: 0,
             status: "rejected",
+            submission_id: submissionId,
             runtime_log: "Invalid user ID",
         };
     }
@@ -188,6 +234,7 @@ export async function judge(
                         score: 0,
                         total: 0,
                         status: "rejected",
+                        submission_id: submissionId,
                         runtime_log: "Database connection failed",
                     });
                     return;
@@ -198,18 +245,17 @@ export async function judge(
                         score: 0,
                         total: 0,
                         status: "rejected",
+                        submission_id: submissionId,
                         runtime_log: "Database initialization failed",
                     });
                     return;
                 }
 
                 db.all(
-                    `
-                        SELECT id, input_data, output_data, weight, is_sample
-                        FROM testcase
-                        WHERE problem_id = ?
-                        ORDER BY id
-                    `,
+                    `SELECT id, input_data, output_data, weight, is_sample
+                     FROM testcase
+                     WHERE problem_id = ?
+                     ORDER BY id`,
                     [problemId],
                     async (err, testcases: Testcase[]) => {
                         if (err) {
@@ -218,6 +264,7 @@ export async function judge(
                                 score: 0,
                                 total: 0,
                                 status: "rejected",
+                                submission_id: submissionId,
                                 runtime_log: "Failed to retrieve testcases",
                             });
                             return;
@@ -229,29 +276,37 @@ export async function judge(
                                 score: 0,
                                 total: 0,
                                 status: "rejected",
+                                submission_id: submissionId,
                                 runtime_log: "No testcases found for this problem",
                             });
                             return;
                         }
 
                         for (const tc of testcases) {
-                            if (Buffer.byteLength(tc.input_data, "utf8") > MAX_TESTCASE_INPUT_SIZE) {
+                            if (
+                                Buffer.byteLength(tc.input_data, "utf8") >
+                                MAX_TESTCASE_INPUT_SIZE
+                            ) {
                                 if (db) db.close();
                                 resolve({
                                     score: 0,
                                     total: 0,
                                     status: "rejected",
+                                    submission_id: submissionId,
                                     runtime_log: `Testcase ${tc.id} input exceeds maximum size`,
                                 });
                                 return;
                             }
-
-                            if (Buffer.byteLength(tc.output_data, "utf8") > MAX_TESTCASE_OUTPUT_SIZE) {
+                            if (
+                                Buffer.byteLength(tc.output_data, "utf8") >
+                                MAX_TESTCASE_OUTPUT_SIZE
+                            ) {
                                 if (db) db.close();
                                 resolve({
                                     score: 0,
                                     total: 0,
                                     status: "rejected",
+                                    submission_id: submissionId,
                                     runtime_log: `Testcase ${tc.id} output exceeds maximum size`,
                                 });
                                 return;
@@ -266,16 +321,16 @@ export async function judge(
                                 score: 0,
                                 total: 0,
                                 status: "rejected",
-                                runtime_log: "Problem must have at least one non-sample testcase",
+                                submission_id: submissionId,
+                                runtime_log:
+                                    "Problem must have at least one non-sample testcase",
                             });
                             return;
                         }
 
                         const totalWeight = hiddenTestcases.reduce((sum, tc) => {
                             const weight = tc.weight ?? 1;
-                            if (typeof weight !== "number" || weight < 0) {
-                                return sum;
-                            }
+                            if (typeof weight !== "number" || weight < 0) return sum;
                             return sum + weight;
                         }, 0);
 
@@ -285,7 +340,9 @@ export async function judge(
                                 score: 0,
                                 total: 0,
                                 status: "rejected",
-                                runtime_log: "Total weight of hidden testcases must be greater than zero",
+                                submission_id: submissionId,
+                                runtime_log:
+                                    "Total weight of hidden testcases must be greater than zero",
                             });
                             return;
                         }
@@ -300,78 +357,56 @@ export async function judge(
 
                         if (compileResult.error) {
                             const executionTime = Date.now() - startTime;
-
-                            if (!db) {
-                                resolve({
-                                    score: 0,
-                                    total: totalWeight,
-                                    status: "rejected",
-                                    compile_log: compileResult.error,
-                                    execution_time_ms: executionTime,
-                                });
-                                return;
+                            if (db) {
+                                try {
+                                    await finaliseSubmission(
+                                        db,
+                                        submissionId,
+                                        "rejected",
+                                        0,
+                                        "Compilation Error: " + compileResult.error,
+                                        null,
+                                        executionTime,
+                                    );
+                                } catch { }
+                                db.close();
+                                db = null;
                             }
-
-                            db.run(
-                                `
-                                    INSERT INTO submission (
-                                        user_id, problem_id, language, source_code,
-                                        status, score, compile_log, execution_time_ms,
-                                        finished_at
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                                `,
-                                [
-                                    userId,
-                                    problemId,
-                                    language,
-                                    code,
-                                    "rejected",
-                                    0,
-                                    "Compilation Error: " + compileResult.error,
-                                    executionTime,
-                                ],
-                                function (err) {
-                                    if (db) db.close();
-                                    resolve({
-                                        score: 0,
-                                        total: totalWeight,
-                                        status: "rejected",
-                                        compile_log: compileResult.error,
-                                        execution_time_ms: executionTime,
-                                        submission_id: err ? undefined : this.lastID,
-                                    });
-                                }
-                            );
+                            resolve({
+                                score: 0,
+                                total: totalWeight,
+                                status: "rejected",
+                                compile_log: compileResult.error,
+                                execution_time_ms: executionTime,
+                                submission_id: submissionId,
+                            });
                             return;
                         }
 
                         compileLogs = compileResult.log || "";
-                        
+
                         let testcaseIndex = 0;
                         for (const testcase of testcases) {
                             if (!testcase.input_data && testcase.input_data !== "") {
                                 allPassed = false;
-                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                    } has invalid input data\n`;
-                                if (testcase.is_sample) {
-                                    break;
-                                }
+                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""} has invalid input data\n`;
+                                if (testcase.is_sample) break;
                                 continue;
                             }
 
                             if (!testcase.output_data && testcase.output_data !== "") {
                                 allPassed = false;
-                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""
-                                    } has invalid output data\n`;
-                                if (testcase.is_sample) {
-                                    break;
-                                }
+                                runtimeLogs += `Testcase ${testcase.id}${testcase.is_sample ? " (sample)" : ""} has invalid output data\n`;
+                                if (testcase.is_sample) break;
                                 continue;
                             }
 
                             try {
-                                const output = await runCode(language, code, testcase.input_data);
-
+                                const output = await runCode(
+                                    language,
+                                    code,
+                                    testcase.input_data,
+                                );
                                 const expected = testcase.output_data.trim();
                                 const actual = output.trim();
 
@@ -384,24 +419,18 @@ export async function judge(
                                     }
                                 } else {
                                     allPassed = false;
-                                    runtimeLogs += `Testcase ${testcaseIndex + 1}${testcase.is_sample ? " (sample)" : ""
-                                        } failed\n`;
-                                    if (testcase.is_sample) {
-                                        break;
-                                    }
+                                    runtimeLogs += `Testcase ${testcaseIndex + 1}${testcase.is_sample ? " (sample)" : ""} failed\n`;
+                                    if (testcase.is_sample) break;
                                 }
                             } catch (error) {
                                 allPassed = false;
-                                const errorMsg = error instanceof Error ? error.message : "Unknown error";
-
-                                runtimeLogs += `Testcase ${testcaseIndex + 1}${testcase.is_sample ? " (sample)" : ""
-                                    } - ${errorMsg.includes("timeout") || errorMsg.includes("timed out")
-                                        ? "Time Limit Exceeded"
-                                        : `Runtime Error: ${errorMsg}`
+                                const errorMsg =
+                                    error instanceof Error ? error.message : "Unknown error";
+                                runtimeLogs += `Testcase ${testcaseIndex + 1}${testcase.is_sample ? " (sample)" : ""} - ${errorMsg.includes("timeout") || errorMsg.includes("timed out")
+                                    ? "Time Limit Exceeded"
+                                    : `Runtime Error: ${errorMsg}`
                                     }\n`;
-                                if (testcase.is_sample) {
-                                    break;
-                                }
+                                if (testcase.is_sample) break;
                             }
                             testcaseIndex++;
                         }
@@ -409,65 +438,44 @@ export async function judge(
                         const executionTime = Date.now() - startTime;
                         const finalStatus = allPassed ? "accepted" : "rejected";
 
-                        if (!db) {
-                            resolve({
-                                score: earnedWeight,
-                                total: totalWeight,
-                                status: finalStatus,
-                                compile_log: compileLogs,
-                                runtime_log: runtimeLogs || undefined,
-                                execution_time_ms: executionTime,
-                            });
-                            return;
+                        if (db) {
+                            try {
+                                await finaliseSubmission(
+                                    db,
+                                    submissionId,
+                                    finalStatus,
+                                    earnedWeight,
+                                    compileLogs,
+                                    runtimeLogs || null,
+                                    executionTime,
+                                );
+                            } catch { }
+                            db.close();
+                            db = null;
                         }
-
-                        db.run(
-                            `
-                                INSERT INTO submission (
-                                    user_id, problem_id, language, source_code,
-                                    status, score, compile_log, runtime_log,
-                                    execution_time_ms, finished_at
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                            `,
-                            [
-                                userId,
-                                problemId,
-                                language,
-                                code,
-                                finalStatus,
-                                earnedWeight,
-                                compileLogs,
-                                runtimeLogs || null,
-                                executionTime,
-                            ],
-                            function (err) {
-                                if (db) db.close();
-                                resolve({
-                                    score: earnedWeight,
-                                    total: totalWeight,
-                                    status: finalStatus,
-                                    compile_log: compileLogs,
-                                    runtime_log: runtimeLogs || undefined,
-                                    execution_time_ms: executionTime,
-                                    submission_id: err ? undefined : this.lastID,
-                                });
-                            }
-                        );
-                    }
+                        resolve({
+                            score: earnedWeight,
+                            total: totalWeight,
+                            status: finalStatus,
+                            compile_log: compileLogs,
+                            runtime_log: runtimeLogs || undefined,
+                            execution_time_ms: executionTime,
+                            submission_id: submissionId,
+                        });
+                    },
                 );
             });
-        } catch (error) {
+        } catch {
             if (db) {
                 try {
                     db.close();
-                } catch {
-                    
-                }
+                } catch { }
             }
             resolve({
                 score: 0,
                 total: 0,
                 status: "rejected",
+                submission_id: submissionId,
                 runtime_log: "Failed to initialize judging system",
             });
         }

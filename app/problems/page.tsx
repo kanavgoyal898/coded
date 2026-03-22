@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
-import { Check, X } from "lucide-react";
+import { Check, X, Clock } from "lucide-react";
 import { formatLocalDateTime } from "@/lib/datetime";
 
 type Problem = {
@@ -40,41 +40,45 @@ export default function ProblemsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetchProblems() {
-      try {
-        const res = await fetch("/api/problems");
-        if (res.status === 401) {
-          router.push("/login");
-          return;
-        }
-        if (!res.ok) {
-          let data: { error?: string } = {};
-          try {
-            data = await res.json();
-          } catch {
-            throw new Error("Failed to load problems");
-          }
-          throw new Error(data.error || "Failed to load problems");
-        }
-        const data = await res.json();
-        setProblems(data.problems);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load problems"
-        );
-      } finally {
-        setLoading(false);
+  const fetchProblems = async () => {
+    try {
+      const res = await fetch("/api/problems");
+      if (res.status === 401) {
+        router.push("/login");
+        return;
       }
+      if (!res.ok) {
+        let data: { error?: string } = {};
+        try { data = await res.json(); } catch { }
+        throw new Error(data.error || "Failed to load problems");
+      }
+      const data = await res.json();
+      setProblems(data.problems);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load problems");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchProblems();
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    const hasPending = problems.some((p) => p.latest_status === "pending");
+    if (!hasPending) return;
+
+    const timer = setTimeout(fetchProblems, 3000);
+    return () => clearTimeout(timer);
+  }, [problems]);
 
   const columns: ColumnDef<Problem>[] = [
     {
       key: "solved",
       header: "",
       cellClassName: "w-8",
+      sortable: false,
       render: (problem) => {
         if (problem.latest_status === "accepted") {
           return (
@@ -82,10 +86,18 @@ export default function ProblemsPage() {
               <Check className="w-4 h-4" strokeWidth={4} />
             </span>
           );
-        } else if (problem.latest_status === "rejected") {
+        }
+        if (problem.latest_status === "rejected") {
           return (
             <span className="inline-flex items-center justify-center w-6 h-6 text-red-700">
               <X className="w-4 h-4" strokeWidth={4} />
+            </span>
+          );
+        }
+        if (problem.latest_status === "pending") {
+          return (
+            <span className="inline-flex items-center justify-center w-6 h-6 text-yellow-600">
+              <Clock className="w-4 h-4" />
             </span>
           );
         }

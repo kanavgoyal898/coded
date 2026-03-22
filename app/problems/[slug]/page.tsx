@@ -29,13 +29,9 @@ type ApiResponse = {
   samples?: SampleTestcase[];
 };
 
-type SubmissionResponse = {
+type SubmitResponse = {
   error?: string;
-  score?: number;
-  total?: number;
-  status?: string;
-  compile_log?: string;
-  runtime_log?: string;
+  queued?: boolean;
 };
 
 const MAX_FILE_SIZE = 64 * 1024;
@@ -53,12 +49,10 @@ export default function SubmitProblemPage() {
 
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const [score, setScore] = useState<{ score: number; total: number } | null>(null);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [compileLogs, setCompileLogs] = useState<string | null>(null);
-  const [runtimeLogs, setRuntimeLogs] = useState<string | null>(null);
+
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug || typeof slug !== "string" || slug.trim().length === 0) {
@@ -74,14 +68,11 @@ export default function SubmitProblemPage() {
       try {
         const res = await fetch(`/api/problems/${encodeURIComponent(slug)}`, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
         });
 
         let data: ApiResponse;
-
         try {
           data = await res.json();
         } catch {
@@ -91,17 +82,14 @@ export default function SubmitProblemPage() {
         if (res.status === 404) {
           throw new Error(data.error || "Problem not found. It may have been removed or made private.");
         }
-
         if (!res.ok) {
           throw new Error(data.error || "Failed to load problem. Please try again.");
         }
-
         if (!data.problem) {
           throw new Error("Invalid problem data received from server.");
         }
 
         const problemData = data.problem;
-
         if (!problemData.id || !problemData.title || !problemData.statement) {
           throw new Error("Incomplete problem data received from server.");
         }
@@ -109,8 +97,7 @@ export default function SubmitProblemPage() {
         setProblem(problemData);
         setSamples(Array.isArray(data.samples) ? data.samples : []);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : "Unable to load problem. Please check your connection.";
-        setError(errorMessage);
+        setError(err instanceof Error ? err.message : "Unable to load problem. Please check your connection.");
       } finally {
         setLoading(false);
       }
@@ -120,29 +107,15 @@ export default function SubmitProblemPage() {
   }, [slug]);
 
   const validateFile = (selectedFile: File | null): string | null => {
-    if (!selectedFile) {
-      return "Please select a file.";
-    }
-
-    if (!selectedFile.name || selectedFile.name.trim().length === 0) {
-      return "Selected file has an invalid name.";
-    }
-
-    if (selectedFile.size === 0) {
-      return "Selected file is empty.";
-    }
-
-    if (selectedFile.size > MAX_FILE_SIZE) {
-      return `File size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024}KB.`;
-    }
+    if (!selectedFile) return "Please select a file.";
+    if (!selectedFile.name || selectedFile.name.trim().length === 0) return "Selected file has an invalid name.";
+    if (selectedFile.size === 0) return "Selected file is empty.";
+    if (selectedFile.size > MAX_FILE_SIZE) return `File size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024}KB.`;
 
     const fileName = selectedFile.name.toLowerCase();
-    const hasValidExtension = ALLOWED_EXTENSIONS.some(ext => fileName.endsWith(ext));
-
-    if (!hasValidExtension) {
+    if (!ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext))) {
       return `Invalid file type. Allowed extensions: ${ALLOWED_EXTENSIONS.join(", ")}`;
     }
-
     return null;
   };
 
@@ -150,10 +123,7 @@ export default function SubmitProblemPage() {
     const selectedFile = e.target.files?.[0] || null;
     setFileError(null);
 
-    if (!selectedFile) {
-      setFile(null);
-      return;
-    }
+    if (!selectedFile) { setFile(null); return; }
 
     const validation = validateFile(selectedFile);
     if (validation) {
@@ -167,21 +137,13 @@ export default function SubmitProblemPage() {
   };
 
   const submit = async () => {
-    if (!file || !problem) {
-      return;
-    }
+    if (!file || !problem) return;
 
     const validation = validateFile(file);
-    if (validation) {
-      setFileError(validation);
-      return;
-    }
+    if (validation) { setFileError(validation); return; }
 
     setSubmitting(true);
     setSubmissionError(null);
-    setCompileLogs(null);
-    setRuntimeLogs(null);
-    setScore(null);
 
     try {
       const formData = new FormData();
@@ -194,13 +156,9 @@ export default function SubmitProblemPage() {
         credentials: "same-origin",
       });
 
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
+      if (res.status === 401) { router.push("/login"); return; }
 
-      let data: SubmissionResponse;
-
+      let data: SubmitResponse;
       try {
         data = await res.json();
       } catch {
@@ -211,25 +169,12 @@ export default function SubmitProblemPage() {
         throw new Error(data.error || "Submission failed. Please try again.");
       }
 
-      if (typeof data.score !== "number" || typeof data.total !== "number") {
-        throw new Error("Invalid submission result received from server.");
-      }
-
-      setScore({ score: data.score, total: data.total });
-
-      if (data.compile_log && data.compile_log.trim().length > 0) {
-        setCompileLogs(data.compile_log);
-      }
-
-      if (data.runtime_log && data.runtime_log.trim().length > 0) {
-        setRuntimeLogs(data.runtime_log);
-      }
+      router.push("/submissions");
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unable to submit solution. Please check your connection.";
-      setSubmissionError(errorMessage);
+      setSubmissionError(err instanceof Error ? err.message : "Unable to submit solution. Please check your connection.");
+      setOpen(true);
     } finally {
       setSubmitting(false);
-      setOpen(true);
     }
   };
 
@@ -270,9 +215,7 @@ export default function SubmitProblemPage() {
       <div className="space-y-2">
         <Label className="text-lg">{problem.title}</Label>
         <p className="text-xs text-muted-foreground">
-          {problem.setter_name ? (
-            <>Set by <b>{problem.setter_name}</b> • </>
-          ) : null}
+          {problem.setter_name ? (<>Set by <b>{problem.setter_name}</b> • </>) : null}
           {problem.time_limit_ms} ms • {Math.floor(problem.memory_limit_kb / 1024)} MB
           {problem.deadline_at ? (
             <> • Deadline: {formatLocalDateTime(problem.deadline_at)}</>
@@ -348,62 +291,15 @@ export default function SubmitProblemPage() {
         </Button>
       </div>
 
-      <Dialog open={open} onOpenChange={(isOpen) => {
-        setOpen(isOpen);
-        if (!isOpen && !submissionError) {
-          router.push("/submissions");
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Submission Result</DialogTitle>
+            <DialogTitle>Submission Error</DialogTitle>
           </DialogHeader>
-
-          <div className="text-sm space-y-2 mt-2">
-            {submissionError ? (
-              <div className="text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
-                {submissionError}
-              </div>
-            ) : score ? (
-              <div>
-                <div className="text-sm">
-                  Score:{" "}
-                  <span className="font-semibold">
-                    {score.score}/{score.total}
-                  </span>
-
-                  {score.score === score.total ? (
-                    <span className="ml-2 text-green-600">All tests passed!</span>
-                  ) : score.score > 0 ? (
-                    <span className="ml-2 text-amber-600">Partial credit</span>
-                  ) : (
-                    <span className="ml-2 text-red-600">No tests passed</span>
-                  )}
-                </div>
-
-                {compileLogs && (
-                  <div className="mt-4">
-                    <div className="text-sm font-medium mb-1">Compilation Output:</div>
-                    <pre className="bg-muted px-4 py-2 rounded text-xs font-mono whitespace-pre-wrap max-h-40 overflow-y-auto">
-                      {compileLogs}
-                    </pre>
-                  </div>
-                )}
-
-                {runtimeLogs && (
-                  <div className="mt-4">
-                    <div className="text-sm font-medium mb-1">Test Results:</div>
-                    <pre className="bg-muted px-4 py-2 rounded text-xs font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
-                      {runtimeLogs}
-                    </pre>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-muted-foreground">
-                No submission result available.
-              </div>
-            )}
+          <div className="text-sm mt-2">
+            <div className="text-red-700 bg-red-50 border border-red-200 rounded px-4 py-2">
+              {submissionError}
+            </div>
           </div>
           <DialogClose asChild>
             <Button variant="outline">Close</Button>
