@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { MAX_TITLE_LENGTH, MAX_STATEMENT_LENGTH, MAX_TESTCASE_INPUT_LENGTH, MAX_TESTCASE_OUTPUT_LENGTH, MAX_TESTCASES, MIN_TIME_LIMIT, MAX_TIME_LIMIT, MIN_MEMORY_LIMIT, MAX_MEMORY_LIMIT, MIN_WEIGHT, MAX_WEIGHT, DEFAULT_TIME_LIMIT_MS, DEFAULT_MEMORY_LIMIT_KB } from "@/lib/constants/problem";
 
 type Testcase = {
   input: string;
@@ -22,17 +23,6 @@ type ApiResponse = {
   error?: string;
 };
 
-const MAX_TITLE_LENGTH = 256;
-const MAX_STATEMENT_LENGTH = 64 * 1024;
-const MAX_TESTCASE_INPUT_LENGTH = 16 * 1024;
-const MAX_TESTCASE_OUTPUT_LENGTH = 16 * 1024;
-const MAX_TESTCASES = 64;
-const MIN_TIME_LIMIT = 1;
-const MAX_TIME_LIMIT = 16 * 1024;
-const MIN_MEMORY_LIMIT = 1;
-const MAX_MEMORY_LIMIT = 16 * 1024 * 1024;
-const MIN_WEIGHT = 0;
-const MAX_WEIGHT = 100;
 
 const formatNumbers = (value: string | number) => {
   return Number(value).toLocaleString('en-US');
@@ -43,8 +33,8 @@ export default function AddProblemPage() {
 
   const [title, setTitle] = useState("");
   const [statement, setStatement] = useState("");
-  const [timeLimit, setTimeLimit] = useState("1024");
-  const [memoryLimit, setMemoryLimit] = useState("262144");
+  const [timeLimit, setTimeLimit] = useState(String(DEFAULT_TIME_LIMIT_MS));
+  const [memoryLimit, setMemoryLimit] = useState(String(DEFAULT_MEMORY_LIMIT_KB));
   const [deadline, setDeadline] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [solvers, setSolvers] = useState("");

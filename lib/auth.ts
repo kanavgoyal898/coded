@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
+import { ROLES } from "@/lib/constants/roles";
 
 const SECRET = process.env.AUTH_SECRET || "coded-production";
 const COOKIE_NAME = "coded_session";
@@ -9,7 +10,6 @@ const MIN_PASSWORD_LENGTH = 1;
 const MAX_PASSWORD_LENGTH = 1024;
 const SALT_LENGTH = 16;
 const HASH_LENGTH = 64;
-const VALID_ROLES = ["admin", "setter", "solver"];
 
 export function hashPassword(password: string): string {
     if (!password || typeof password !== "string") {
@@ -85,8 +85,8 @@ export function createToken(userId: number, role: string): string {
         throw new Error("Role must be a non-empty string");
     }
 
-    if (!VALID_ROLES.includes(role)) {
-        throw new Error(`Role must be one of: ${VALID_ROLES.join(", ")}`);
+    if (!ROLES.includes(role as typeof ROLES[number])) {
+        throw new Error(`Role must be one of: ${ROLES.join(", ")}`);
     }
 
     try {
@@ -150,7 +150,7 @@ export function verifyToken(
             return null;
         }
 
-        if (!VALID_ROLES.includes(decoded.role)) {
+        if (!ROLES.includes(decoded.role as typeof ROLES[number])) {
             return null;
         }
 

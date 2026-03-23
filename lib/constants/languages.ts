@@ -9,11 +9,19 @@ interface LanguageConfig {
     getRunCommand: (encodedCode: string, tempFile: string) => string;
 }
 
+export const DEFAULT_LANGUAGE: LanguageKey = "c";
+
+export const DOCKER_IMAGES = {
+    c: "judge-c",
+    cpp: "judge-cpp",
+    python: "judge-python",
+} as const satisfies Record<LanguageKey, string>;
+
 export const LANGUAGES: Record<LanguageKey, LanguageConfig> = {
     c: {
         label: "C",
         extensions: [".c"],
-        dockerImage: "judge-c",
+        dockerImage: DOCKER_IMAGES.c,
         compileSuccessMessage: "Compilation successful",
 
         getCompileCommand: (encodedCode, tempFile) =>
@@ -26,7 +34,7 @@ export const LANGUAGES: Record<LanguageKey, LanguageConfig> = {
     cpp: {
         label: "C++",
         extensions: [".cpp", ".cc", ".cxx"],
-        dockerImage: "judge-cpp",
+        dockerImage: DOCKER_IMAGES.cpp,
         compileSuccessMessage: "Compilation successful",
 
         getCompileCommand: (encodedCode, tempFile) =>
@@ -39,7 +47,7 @@ export const LANGUAGES: Record<LanguageKey, LanguageConfig> = {
     python: {
         label: "Python",
         extensions: [".py"],
-        dockerImage: "judge-python",
+        dockerImage: DOCKER_IMAGES.python,
         compileSuccessMessage: "Syntax check successful",
 
         getCompileCommand: (encodedCode, tempFile) =>
@@ -63,13 +71,13 @@ export function getLanguageLabel(key: string): string {
 
 export function detectLanguage(file?: File): LanguageKey {
     if (!file || !file.name || typeof file.name !== "string") {
-        return "c";
+        return DEFAULT_LANGUAGE;
     }
 
     const name = file.name.toLowerCase();
 
     if (!name || name.length === 0) {
-        return "c";
+        return DEFAULT_LANGUAGE;
     }
 
     for (const [key, config] of Object.entries(LANGUAGES) as [
@@ -81,7 +89,7 @@ export function detectLanguage(file?: File): LanguageKey {
         }
     }
 
-    return "c";
+    return DEFAULT_LANGUAGE;
 }
 
 export function isValidLanguage(lang: string): boolean {
@@ -107,3 +115,7 @@ export function getLanguageConfig(lang: string): LanguageConfig | null {
 
     return LANGUAGES[lang as LanguageKey] ?? null;
 }
+
+export const LANGUAGE_EXTENSIONS: string[] = LANGUAGE_KEYS.flatMap(
+    (key) => LANGUAGES[key].extensions
+);

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { DataTable, ColumnDef } from "@/app/components/DataTable";
 import { Plus, Trash } from "lucide-react";
 import { formatLocalDateTime } from "@/lib/datetime";
+import { MAX_EMAIL_LENGTH, EMAIL_REGEX } from "@/lib/constants/validation";
 
 type SetterEntry = {
     email: string;
@@ -33,8 +34,6 @@ type BulkAddResult = {
     warning?: boolean;
 };
 
-const MAX_EMAIL_LENGTH = 256;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function AdminSettersPage() {
     const router = useRouter();

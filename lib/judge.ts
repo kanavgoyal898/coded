@@ -3,12 +3,10 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { runContainer } from "./docker";
 import { LANGUAGES, LanguageKey } from "./constants/languages";
+import { MAX_CODE_SIZE, MAX_IO_SIZE, COMPILE_MEMORY_MB, COMPILE_CPU_CORES, COMPILE_TIMEOUT_MS, RUN_MEMORY_MB, RUN_CPU_CORES, RUN_TIMEOUT_MS } from "./constants/judge";
 
-const MAX_CODE_SIZE = 64 * 1024;
 const MIN_USER_ID = 1;
 const MIN_PROBLEM_ID = 1;
-const MAX_TESTCASE_INPUT_SIZE = 1024 * 1024;
-const MAX_TESTCASE_OUTPUT_SIZE = 1024 * 1024;
 
 interface JudgeResult {
     score: number;
@@ -62,9 +60,9 @@ async function compileCode(lang: string, code: string): Promise<CompileResult> {
             config.dockerImage,
             config.getCompileCommand(encodedCode, tempFile),
             "",
-            256,
-            0.5,
-            10000,
+            COMPILE_MEMORY_MB,
+            COMPILE_CPU_CORES,
+            COMPILE_TIMEOUT_MS,
         );
 
         return { log: result };
@@ -97,9 +95,9 @@ async function runCode(
         throw new Error("Input must be a string");
     }
 
-    if (Buffer.byteLength(input, "utf8") > MAX_TESTCASE_INPUT_SIZE) {
+    if (Buffer.byteLength(input, "utf8") > MAX_IO_SIZE) {
         throw new Error(
-            `Testcase input exceeds maximum size of ${MAX_TESTCASE_INPUT_SIZE} bytes`,
+            `Testcase input exceeds maximum size of ${MAX_IO_SIZE} bytes`,
         );
     }
 
@@ -111,9 +109,9 @@ async function runCode(
         config.dockerImage,
         config.getRunCommand(encodedCode, tempFile),
         input,
-        256,
-        0.5,
-        5000,
+        RUN_MEMORY_MB,
+        RUN_CPU_CORES,
+        RUN_TIMEOUT_MS,
     );
 }
 
@@ -285,7 +283,7 @@ export async function judge(
                         for (const tc of testcases) {
                             if (
                                 Buffer.byteLength(tc.input_data, "utf8") >
-                                MAX_TESTCASE_INPUT_SIZE
+                                MAX_IO_SIZE
                             ) {
                                 if (db) db.close();
                                 resolve({
@@ -299,7 +297,7 @@ export async function judge(
                             }
                             if (
                                 Buffer.byteLength(tc.output_data, "utf8") >
-                                MAX_TESTCASE_OUTPUT_SIZE
+                                MAX_IO_SIZE
                             ) {
                                 if (db) db.close();
                                 resolve({

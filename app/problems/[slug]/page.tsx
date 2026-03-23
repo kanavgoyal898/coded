@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { formatLocalDateTime } from "@/lib/datetime";
+import { MAX_CODE_SIZE } from "@/lib/constants/judge";
+import { LANGUAGE_EXTENSIONS } from "@/lib/constants/languages";
 
 type Problem = {
   id: number;
@@ -34,8 +36,6 @@ type SubmitResponse = {
   queued?: boolean;
 };
 
-const MAX_FILE_SIZE = 64 * 1024;
-const ALLOWED_EXTENSIONS = [".c", ".cpp", ".cc", ".cxx", ".py"];
 
 export default function SubmitProblemPage() {
   const params = useParams();
@@ -110,11 +110,11 @@ export default function SubmitProblemPage() {
     if (!selectedFile) return "Please select a file.";
     if (!selectedFile.name || selectedFile.name.trim().length === 0) return "Selected file has an invalid name.";
     if (selectedFile.size === 0) return "Selected file is empty.";
-    if (selectedFile.size > MAX_FILE_SIZE) return `File size exceeds maximum allowed size of ${MAX_FILE_SIZE / 1024}KB.`;
+    if (selectedFile.size > MAX_CODE_SIZE) return `File size exceeds maximum allowed size of ${MAX_CODE_SIZE / 1024}KB.`;
 
     const fileName = selectedFile.name.toLowerCase();
-    if (!ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext))) {
-      return `Invalid file type. Allowed extensions: ${ALLOWED_EXTENSIONS.join(", ")}`;
+    if (!LANGUAGE_EXTENSIONS.some((ext) => fileName.endsWith(ext))) {
+      return `Invalid file type. Allowed extensions: ${LANGUAGE_EXTENSIONS.join(", ")}`;
     }
     return null;
   };
@@ -277,7 +277,7 @@ export default function SubmitProblemPage() {
           id="file"
           type="file"
           className="hidden"
-          accept={ALLOWED_EXTENSIONS.join(",")}
+          accept={LANGUAGE_EXTENSIONS.join(",")}
           onChange={handleFileChange}
           disabled={submitting}
         />

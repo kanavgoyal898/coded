@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import sqlite3 from "sqlite3";
 import path from "path";
 import { getSessionUserFromRequest } from "@/lib/auth";
+import { MAX_EMAIL_LENGTH, MAX_LOCAL_PART_LENGTH, EMAIL_REGEX } from "@/lib/constants/validation";
 
 export const runtime = "nodejs";
 
@@ -17,9 +18,6 @@ interface SessionUser {
     userId: number;
 }
 
-const MAX_EMAIL_LENGTH = 256;
-const MAX_LOCAL_PART_LENGTH = 64;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function openDb(): Promise<sqlite3.Database> {
     return new Promise((resolve, reject) => {

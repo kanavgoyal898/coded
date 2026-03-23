@@ -3,18 +3,11 @@ import sqlite3 from "sqlite3";
 import path from "path";
 import { getSessionUserFromRequest } from "@/lib/auth";
 import { normalizeToUTCISO } from "@/lib/datetime";
+import { MAX_TITLE_LENGTH, MAX_STATEMENT_LENGTH, MIN_TIME_LIMIT, MAX_TIME_LIMIT, MIN_MEMORY_LIMIT, MAX_MEMORY_LIMIT, MAX_SOLVERS } from "@/lib/constants/problem";
+import { MAX_EMAIL_LENGTH, EMAIL_REGEX } from "@/lib/constants/validation";
 
 export const runtime = "nodejs";
 
-const MAX_TITLE_LENGTH = 256;
-const MAX_STATEMENT_LENGTH = 64 * 1024;
-const MIN_TIME_LIMIT = 1;
-const MAX_TIME_LIMIT = 16 * 1024;
-const MIN_MEMORY_LIMIT = 1;
-const MAX_MEMORY_LIMIT = 16 * 1024 * 1024;
-const MAX_EMAIL_LENGTH = 256;
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_SOLVERS = 1000;
 
 interface ProblemWithSubmissions {
     problem_id: number;

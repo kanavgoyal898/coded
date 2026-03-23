@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { ROLES } from "@/lib/constants/roles";
 
 export const COOKIE_NAME = "coded_session";
 
@@ -53,8 +54,7 @@ export function getSessionUserFromRequest(
             return null;
         }
 
-        const validRoles = ["admin", "setter", "solver"];
-        if (!validRoles.includes(parsed.role)) {
+        if (!ROLES.includes(parsed.role as typeof ROLES[number])) {
             return null;
         }
 

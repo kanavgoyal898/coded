@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { SideBar } from "@/app/components/SideBar";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { MIN_PASSWORD_LENGTH_UI } from "@/lib/constants/validation";
 
-const MIN_PASSWORD_LENGTH = 8;
 
 function SignupForm() {
     const { refresh } = useCurrentUser();
@@ -29,8 +29,8 @@ function SignupForm() {
             return;
         }
 
-        if (password.length < MIN_PASSWORD_LENGTH) {
-            setError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+        if (password.length < MIN_PASSWORD_LENGTH_UI) {
+            setError(`Password must be at least ${MIN_PASSWORD_LENGTH_UI} characters.`);
             return;
         }
 

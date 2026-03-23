@@ -10,6 +10,8 @@ const MAX_TIMEOUT_MS = 32768;
 const MIN_TIMEOUT_MS = 1024;
 const MAX_INPUT_SIZE = 1024 * 1024;
 const MAX_OUTPUT_SIZE = 1024 * 1024;
+const CONTAINER_PIDS_LIMIT = 100;
+const CONTAINER_NOFILE_LIMIT = 64;
 
 function dockerCleanup() {
     const cmds = [
@@ -105,8 +107,8 @@ export async function runContainer(
                 "--memory", `${memoryMB}m`,
                 "--cpus", `${cpuCores}`,
                 "--network", "none",
-                "--pids-limit", "100",
-                "--ulimit", "nofile=64:64",
+                "--pids-limit", `${CONTAINER_PIDS_LIMIT}`,
+                "--ulimit", `nofile=${CONTAINER_NOFILE_LIMIT}:${CONTAINER_NOFILE_LIMIT}`,
                 "-i",
                 image,
                 "bash",
