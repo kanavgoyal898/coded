@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkdownEditor } from "@/app/components/MarkdownEditor";
-import { Plus, Trash2, Camera, Link as LinkIcon, Mail, Phone, MapPin, Twitter, Github, Linkedin, Globe, Edit2, X, Check, Facebook, Instagram, Youtube, GraduationCap, Twitch, Gitlab, Slack, Dribbble, Figma, Code2, Terminal, MessageCircle, GitBranch } from "lucide-react";
+import { Plus, Trash2, Link as LinkIcon, Mail, Phone, MapPin, Twitter, Github, Linkedin, Globe, Edit2, X, Check, Facebook, Instagram, Youtube, GraduationCap, Twitch, Gitlab, Slack, Dribbble, Figma, Code2, MessageCircle, GitBranch } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -19,7 +19,6 @@ type Setter = {
   profile: string;
   socials: string;
   description: string;
-  avatar: string;
   user_name: string;
 };
 
@@ -38,6 +37,22 @@ function parseStringList(val: string | null): string[] {
   return val ? [val] : [];
 }
 
+function formatLinkLabel(value: string) {
+  return value
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "");
+}
+
+function formatLinkHref(value: string) {
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+
+  return `https://${value}`;
+}
+
+// avatar handling removed
+
 export default function SetterProfilePage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -54,8 +69,8 @@ export default function SetterProfilePage() {
     profile: "",
     socials: [] as string[],
     description: "",
-    avatar: "",
   });
+  
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -80,7 +95,6 @@ export default function SetterProfilePage() {
             profile: data.setter.profile || "",
             socials: parseStringList(data.setter.socials),
             description: data.setter.description || "",
-            avatar: data.setter.avatar || "",
           });
         }
         setIsOwner(data.is_owner || false);
@@ -134,34 +148,12 @@ export default function SetterProfilePage() {
         profile: setter.profile || "",
         socials: parseStringList(setter.socials),
         description: setter.description || "",
-        avatar: setter.avatar || "",
       });
+      
     }
     setIsEditing(false);
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setEditForm((prev) => ({ ...prev, avatar: data.url }));
-      } else {
-        alert(data.error || "Failed to upload image.");
-      }
-    } catch (err) {
-      alert("An error occurred during upload.");
-    }
-  };
 
   if (loading) {
     return (
@@ -193,32 +185,9 @@ export default function SetterProfilePage() {
       <div className="flex justify-between items-start">
         <div className="flex items-center gap-6">
           <div className="relative w-24 h-24 rounded-full bg-muted flex items-center justify-center overflow-hidden border">
-            {(isEditing ? editForm.avatar : setter.avatar) ? (
-              <img
-                src={isEditing ? editForm.avatar : setter.avatar}
-                alt="Profile"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="text-2xl font-bold text-muted-foreground uppercase">
-                {(setter.name || setter.user_name || "?")[0]}
-              </span>
-            )}
-            {isEditing && (
-              <div
-                className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer opacity-0 hover:opacity-100 transition-opacity"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Camera className="w-6 h-6 text-white" />
-              </div>
-            )}
-            <input
-              type="file"
-              accept="image/png, image/jpeg, image/jpg"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleAvatarUpload}
-            />
+            <span className="text-2xl font-bold text-muted-foreground uppercase">
+              {(setter.name || setter.user_name || "?")[0]}
+            </span>
           </div>
           <div className="space-y-1">
             <h2 className="text-3xl font-semibold">
@@ -243,8 +212,8 @@ export default function SetterProfilePage() {
               </Label>
               <div className="text-sm">
                 {setter.profile ? (
-                  <a href={setter.profile} target="_blank" rel="noreferrer" className="text-primary hover:text-primary/80 font-medium hover:underline flex items-center gap-1.5 break-all">
-                    {setter.profile.replace(/^https?:\/\//, '')}
+                  <a href={formatLinkHref(setter.profile)} target="_blank" rel="noreferrer" className="text-primary hover:text-primary/80 font-medium hover:underline flex items-center gap-1.5 break-all">
+                    {formatLinkLabel(setter.profile)}
                   </a>
                 ) : (
                   <span className="text-muted-foreground italic">-</span>
@@ -265,7 +234,7 @@ export default function SetterProfilePage() {
                       <div className="bg-muted p-1.5 rounded-md text-muted-foreground shrink-0 mt-0.5">
                         {c.includes('@') ? <Mail className="w-3.5 h-3.5" /> : c.match(/^[\d\+\-\s\(\)]+$/) ? <Phone className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
                       </div>
-                      <span className="break-words">{c}</span>
+                      <span className="wrap-break-word">{c}</span>
                     </div>
                   ))
                 ) : (
@@ -322,8 +291,8 @@ export default function SetterProfilePage() {
                         <div className="bg-muted p-1.5 rounded-md text-muted-foreground shrink-0">
                           <Icon className="w-3.5 h-3.5" />
                         </div>
-                        <a href={c} target="_blank" rel="noreferrer" className="text-primary hover:text-primary/80 hover:underline break-all truncate">
-                          {c.replace(/^https?:\/\//, '')}
+                        <a href={formatLinkHref(c)} target="_blank" rel="noreferrer" className="text-primary hover:text-primary/80 hover:underline break-all truncate">
+                          {formatLinkLabel(c)}
                         </a>
                       </div>
                     );

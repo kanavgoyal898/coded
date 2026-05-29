@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { writeFile } from "fs/promises";
+import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
 
@@ -21,7 +22,10 @@ export async function POST(req: NextRequest) {
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
+        const extensionFromName = path.extname(file.name).toLowerCase();
+        const extensionFromType = file.type.startsWith("image/") ? `.${file.type.split("/")[1]}` : "";
+        const extension = extensionFromName || extensionFromType;
+        const filename = `${randomUUID()}${extension}`;
         const uploadDir = path.join(process.cwd(), "public", "uploads");
 
         if (!fs.existsSync(uploadDir)) {
@@ -31,7 +35,7 @@ export async function POST(req: NextRequest) {
         const filePath = path.join(uploadDir, filename);
         await writeFile(filePath, buffer);
 
-        return NextResponse.json({ url: `/uploads/${filename}` });
+        return NextResponse.json({ filename, url: `/uploads/${filename}` });
     } catch (err) {
         console.error(err);
         return NextResponse.json({ error: "Internal server error." }, { status: 500 });

@@ -17,6 +17,15 @@ const dbGet = (query: string, params: any[] = []): Promise<any> => {
     });
 };
 
+const dbAll = (query: string, params: any[] = []): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+        db.all(query, params, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows || []);
+        });
+    });
+};
+
 const dbRun = (query: string, params: any[] = []): Promise<any> => {
     return new Promise((resolve, reject) => {
         db.run(query, params, function (err) {
@@ -25,6 +34,8 @@ const dbRun = (query: string, params: any[] = []): Promise<any> => {
         });
     });
 };
+
+// avatar column is deprecated for setter/admin; stop creating or using it
 
 export async function GET(
     req: NextRequest,
@@ -42,7 +53,7 @@ export async function GET(
 
     try {
         const setter: any = await dbGet(`
-            SELECT s.*, u.name as user_name
+            SELECT s.id, s.email, s.added_by, s.added_at, s.slug, s.name, s.contact, s.profile, s.socials, s.description, u.name as user_name
             FROM setter s
             LEFT JOIN user u ON s.email = u.email
             WHERE s.slug = ?
@@ -86,6 +97,7 @@ export async function PATCH(
     }
 
     try {
+        
         const user: any = await dbGet(`SELECT email, role FROM user WHERE id = ?`, [session.userId]);
         if (!user) {
             return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
@@ -101,13 +113,13 @@ export async function PATCH(
         }
 
         const body = await req.json();
-        const { contact, profile, socials, description, name, avatar } = body;
+        const { contact, profile, socials, description, name } = body;
 
         await dbRun(`
             UPDATE setter
-            SET contact = ?, profile = ?, socials = ?, description = ?, name = ?, avatar = ?
+            SET contact = ?, profile = ?, socials = ?, description = ?, name = ?
             WHERE slug = ?
-        `, [contact, profile, socials, description, name, avatar, slug]);
+        `, [contact, profile, socials, description, name, slug]);
 
         await dbRun(`
             UPDATE user
