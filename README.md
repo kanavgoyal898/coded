@@ -86,22 +86,42 @@ arX/
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 18+
-- [Docker](https://www.docker.com/)
+- [Node.js](https://nodejs.org/) 18+ (recommended: Node.js 20 LTS)
+- [Docker Desktop](https://www.docker.com/)
 - `npm` (or `pnpm` / `yarn`)
 - `sqlite3` CLI (for database initialization)
 
 ### Setup
+
+#### macOS / Linux
 
 ```bash
 chmod +x setup.sh
 ./setup.sh
 ```
 
+#### Windows
+
+1. Install Docker Desktop and ensure the Docker engine is running
+2. Ensure Docker is using the WSL 2 backend and Linux containers
+3. Install SQLite CLI:
+
+```powershell
+winget install SQLite.SQLite
+```
+
+4. Run the setup script using Git Bash or WSL:
+
+```bash
+bash setup.sh
+```
+
 This script will:
 1. Build the `judge-c`, `judge-cpp`, and `judge-python` Docker images (if not already built)
 2. Initialize `database.db` from `schema.sql` (if it doesn't exist)
-3. Build and start the Next.js application
+3. Install project dependencies
+4. Run the seed script
+5. Build and start the Next.js application
 
 The app will be available at [http://localhost:3000](http://localhost:3000).
 
