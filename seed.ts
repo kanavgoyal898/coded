@@ -40,19 +40,19 @@ const main = async () => {
         const setterPass = hashPassword('setter@123');
         const solverPass = hashPassword('solver@123');
 
-        await run(`INSERT OR IGNORE INTO user (name, email, password, role) VALUES (?, ?, ?, ?)`, ['Admin', 'admin@coded.com', adminPass, 'admin']);
-        await run(`INSERT OR IGNORE INTO user (name, email, password, role) VALUES (?, ?, ?, ?)`, ['Setter', 'setter@coded.com', setterPass, 'setter']);
-        await run(`INSERT OR IGNORE INTO user (name, email, password, role) VALUES (?, ?, ?, ?)`, ['Solver', 'solver@coded.com', solverPass, 'solver']);
+        await run(`INSERT OR IGNORE INTO user (name, email, password, role) VALUES (?, ?, ?, ?)`, ['Admin', 'admin@arX.com', adminPass, 'admin']);
+        await run(`INSERT OR IGNORE INTO user (name, email, password, role) VALUES (?, ?, ?, ?)`, ['Setter', 'setter@arX.com', setterPass, 'setter']);
+        await run(`INSERT OR IGNORE INTO user (name, email, password, role) VALUES (?, ?, ?, ?)`, ['Solver', 'solver@arX.com', solverPass, 'solver']);
 
-        const adminUser = await get(`SELECT id FROM user WHERE email = ?`, ['admin@coded.com']);
-        const setterUser = await get(`SELECT id FROM user WHERE email = ?`, ['setter@coded.com']);
+        const adminUser = await get(`SELECT id FROM user WHERE email = ?`, ['admin@arX.com']);
+        const setterUser = await get(`SELECT id FROM user WHERE email = ?`, ['setter@arX.com']);
 
         if (adminUser && setterUser) {
             await run(`INSERT OR IGNORE INTO setter (email, added_by, slug) VALUES (?, ?, ?)`, 
-                ['admin@coded.com', adminUser.id, 'admin']);
+                ['admin@arX.com', adminUser.id, 'admin']);
 
             await run(`INSERT OR IGNORE INTO setter (email, added_by, slug) VALUES (?, ?, ?)`, 
-                ['setter@coded.com', adminUser.id, 'setter']);
+                ['setter@arX.com', adminUser.id, 'setter']);
 
             await run(`INSERT OR IGNORE INTO problem (title, slug, statement, setter_id, time_limit_ms, memory_limit_kb) VALUES (?, ?, ?, ?, ?, ?)`, 
                 ['Two Sum', 'two-sum', 'Given an array of integers nums and an integer target, return indices of the two numbers such that they add up to target.', setterUser.id, 1024, 262144]);

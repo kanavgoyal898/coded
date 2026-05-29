@@ -1,10 +1,10 @@
-# Coded
+# arX
 
 <div>
   <img src="./image.png" alt="image" width="100%">
 </div>
 
-**Coded** is a lightweight, self-hosted online judge platform built with Next.js, SQLite, and Docker. It lets users set programming problems, submit solutions, and receive instant automated verdicts — all in isolated, sandboxed containers.
+**arX** is a lightweight, self-hosted online judge platform built with Next.js, SQLite, and Docker. It lets users set programming problems, submit solutions, and receive instant automated verdicts — all in isolated, sandboxed containers.
 
 
 ## Features
@@ -56,7 +56,7 @@
 ## Project Structure
 
 ```
-coded/
+arX/
 ├── app/
 │   ├── api/              # API routes (auth, problems, submissions, judge, activity, admin)
 │   ├── components/       # Shared UI components (NavigationBar, DataTable, SubmissionsTable)
@@ -145,7 +145,7 @@ The first admin must be set directly in the database. Setters are managed throug
 
 | Environment Variable | Default | Description |
 |---|---|---|
-| `AUTH_SECRET` | `coded-production` | Secret key used to sign session tokens. **Change this in production.** |
+| `AUTH_SECRET` | `arX-production` | Secret key used to sign session tokens. **Change this in production.** |
 
 ## Security Notes
 

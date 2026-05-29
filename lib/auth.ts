@@ -3,8 +3,8 @@ import { cookies } from "next/headers";
 import { NextRequest } from "next/server";
 import { ROLES } from "@/lib/constants/roles";
 
-const SECRET = process.env.AUTH_SECRET || "coded-production";
-const COOKIE_NAME = "coded_session";
+const SECRET = process.env.AUTH_SECRET || "arX-production";
+const COOKIE_NAME = "arX_session";
 
 const MIN_PASSWORD_LENGTH = 1;
 const MAX_PASSWORD_LENGTH = 1024;

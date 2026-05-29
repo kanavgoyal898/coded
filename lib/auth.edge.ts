@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { ROLES } from "@/lib/constants/roles";
 
-export const COOKIE_NAME = "coded_session";
+export const COOKIE_NAME = "arX_session";
 
 export function getSessionUserFromRequest(
     req: NextRequest
